@@ -1,58 +1,65 @@
+/*
+ *    Copyright 2023 The ChampSim Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 /*! @file
- *  This is an example of the PIN tool that demonstrates some basic PIN APIs 
+ *  This is an example of the PIN tool that demonstrates some basic PIN APIs
  *  and could serve as the starting point for developing your first PIN tool
  */
 
-#include "pin.H"
-#include <iostream>
+#include <atomic>
 #include <fstream>
+#include <iostream>
 #include <stdlib.h>
 #include <string.h>
 #include <string>
 
-using namespace std;
+#include "trace_instruction.h"
+#include "pin.H"
 
-#define NUM_INSTR_DESTINATIONS 2
-#define NUM_INSTR_SOURCES 4
-
-typedef struct trace_instr_format {
-    unsigned long long int ip;  // instruction pointer (program counter) value
-
-    unsigned char is_branch;    // is this branch
-    unsigned char branch_taken; // if so, is this taken
-
-    unsigned char destination_registers[NUM_INSTR_DESTINATIONS]; // output registers
-    unsigned char source_registers[NUM_INSTR_SOURCES];           // input registers
-
-    unsigned long long int destination_memory[NUM_INSTR_DESTINATIONS]; // output memory
-    unsigned long long int source_memory[NUM_INSTR_SOURCES];           // input memory
-} trace_instr_format_t;
+using trace_instr_format_t = input_instr;
 
 /* ================================================================== */
-// Global variables 
+// Global variables
 /* ================================================================== */
 
-UINT64 instrCount = 0;
+static std::atomic<UINT64> skippedInstrCount(0);
+static std::atomic<UINT64> tracedInstructions(0);
+static std::atomic<UINT64> tracedCumulativeInstructions(0);
+static std::atomic<bool> tracingActive(false);
+static std::atomic<bool> foundStartSymbol(false);
+static std::atomic<bool> foundStopSymbol(false);
+static std::atomic<bool> mainImageLoaded(false);
 
-FILE* out;
-
-bool output_file_closed = false;
-bool tracing_on = false;
+std::ofstream outfile;
 
 trace_instr_format_t curr_instr;
 
 /* ===================================================================== */
 // Command line switches
 /* ===================================================================== */
-KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE,  "pintool", "o", "champsim.trace", 
-        "specify file name for Champsim tracer output");
+KNOB<std::string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "champsim.trace", "specify file name for Champsim tracer output");
 
-KNOB<UINT64> KnobSkipInstructions(KNOB_MODE_WRITEONCE, "pintool", "s", "0", 
-        "How many instructions to skip before tracing begins");
+KNOB<UINT64> KnobSkipInstructions(KNOB_MODE_WRITEONCE, "pintool", "s", "0", "How many instructions to skip before tracing begins");
 
-KNOB<UINT64> KnobTraceInstructions(KNOB_MODE_WRITEONCE, "pintool", "t", "1000000", 
-        "How many instructions to trace");
+KNOB<UINT64> KnobTraceInstructions(KNOB_MODE_WRITEONCE, "pintool", "t", "1000000", "How many instructions to trace");
+
+KNOB<std::string> KnobStartSymbol(KNOB_MODE_WRITEONCE, "pintool", "start_symbol", "",
+                                  "Symbol name to start tracing (e.g., 'main' or '_Z4testv'). If specified `-s` argument is ignored.");
+
+KNOB<std::string> KnobStopSymbol(KNOB_MODE_WRITEONCE, "pintool", "stop_symbol", "", "Symbol name to stop tracing (optional)");
 
 /* ===================================================================== */
 // Utilities
@@ -63,247 +70,137 @@ KNOB<UINT64> KnobTraceInstructions(KNOB_MODE_WRITEONCE, "pintool", "t", "1000000
  */
 INT32 Usage()
 {
-    cerr << "This tool creates a register and memory access trace" << endl 
-        << "Specify the output trace file with -o" << endl 
-        << "Specify the number of instructions to skip before tracing with -s" << endl
-        << "Specify the number of instructions to trace with -t" << endl << endl;
+  std::cerr << "This tool creates a register and memory access trace" << std::endl
+            << "Specify the output trace file with -o" << std::endl
+            << "Specify the number of instructions to skip before tracing with -s" << std::endl
+            << "Specify the number of instructions to trace with -t" << std::endl
+            << std::endl;
 
-    cerr << KNOB_BASE::StringKnobSummary() << endl;
+  std::cerr << KNOB_BASE::StringKnobSummary() << std::endl;
 
-    return -1;
+  return -1;
 }
 
 /* ===================================================================== */
 // Analysis routines
 /* ===================================================================== */
 
-void BeginInstruction(VOID *ip, UINT32 op_code, VOID *opstring)
+void ResetCurrentInstruction(VOID* ip)
 {
-    instrCount++;
-    //printf("[%p %u %s ", ip, opcode, (char*)opstring);
-
-    if(instrCount > KnobSkipInstructions.Value()) 
-    {
-        tracing_on = true;
-
-        if(instrCount > (KnobTraceInstructions.Value()+KnobSkipInstructions.Value()))
-            tracing_on = false;
-    }
-
-    if(!tracing_on) 
-        return;
-
-    // reset the current instruction
-    curr_instr.ip = (unsigned long long int)ip;
-
-    curr_instr.is_branch = 0;
-    curr_instr.branch_taken = 0;
-
-    for(int i=0; i<NUM_INSTR_DESTINATIONS; i++) 
-    {
-        curr_instr.destination_registers[i] = 0;
-        curr_instr.destination_memory[i] = 0;
-    }
-
-    for(int i=0; i<NUM_INSTR_SOURCES; i++) 
-    {
-        curr_instr.source_registers[i] = 0;
-        curr_instr.source_memory[i] = 0;
-    }
+  curr_instr = {};
+  curr_instr.ip = (unsigned long long int)ip;
 }
 
-void EndInstruction()
+BOOL ShouldWrite()
 {
-    //printf("%d]\n", (int)instrCount);
+  // Enable tracing when skip limit reached if not symbol-based tracing.
+  // If using symbol-based tracing, `tracingActive` is set at the symbol instead.
+  if (KnobStartSymbol.Value().empty() && skippedInstrCount > KnobSkipInstructions.Value()) {
+    tracingActive = true;
+  }
+  if (tracingActive) {
+    ++tracedInstructions;
+    ++tracedCumulativeInstructions;
+  } else {
+    ++skippedInstrCount;
+    return false;
+  }
+  if (tracedCumulativeInstructions > KnobTraceInstructions.Value()) {
+    tracingActive = false;
+    std::cout << "Reached instruction limit: " << KnobTraceInstructions.Value() << ". Stopping trace." << std::endl;
+    // Note we don't use `PIN_Detach()` because that would stop instrumentation, but let the process continue, and there's no reason to do that.
+    // Stop the application with code 0.
+    PIN_ExitApplication(0);
+    return false; // unreachable
+  }
+  return true;
+}
 
-    //printf("\n");
-
-    if(instrCount > KnobSkipInstructions.Value())
-    {
-        tracing_on = true;
-
-        if(instrCount <= (KnobTraceInstructions.Value()+KnobSkipInstructions.Value()))
-        {
-            // keep tracing
-            fwrite(&curr_instr, sizeof(trace_instr_format_t), 1, out);
-        }
-        else
-        {
-            tracing_on = false;
-            // close down the file, we're done tracing
-            if(!output_file_closed)
-            {
-                fclose(out);
-                output_file_closed = true;
-            }
-
-            exit(0);
-        }
-    }
+void WriteCurrentInstruction()
+{
+  typename decltype(outfile)::char_type buf[sizeof(trace_instr_format_t)];
+  std::memcpy(buf, &curr_instr, sizeof(trace_instr_format_t));
+  outfile.write(buf, sizeof(trace_instr_format_t));
 }
 
 void BranchOrNot(UINT32 taken)
 {
-    //printf("[%d] ", taken);
-
-    curr_instr.is_branch = 1;
-    if(taken != 0)
-    {
-        curr_instr.branch_taken = 1;
-    }
+  curr_instr.is_branch = 1;
+  curr_instr.branch_taken = taken;
 }
 
-void RegRead(UINT32 i, UINT32 index)
+template <typename T>
+void WriteToSet(T* begin, T* end, UINT32 r)
 {
-    if(!tracing_on) return;
-
-    REG r = (REG)i;
-
-    /*
-       if(r == 26)
-       {
-    // 26 is the IP, which is read and written by branches
-    return;
-    }
-    */
-
-    //cout << r << " " << REG_StringShort((REG)r) << " " ;
-    //cout << REG_StringShort((REG)r) << " " ;
-
-    //printf("%d ", (int)r);
-
-    // check to see if this register is already in the list
-    int already_found = 0;
-    for(int i=0; i<NUM_INSTR_SOURCES; i++)
-    {
-        if(curr_instr.source_registers[i] == ((unsigned char)r))
-        {
-            already_found = 1;
-            break;
-        }
-    }
-    if(already_found == 0)
-    {
-        for(int i=0; i<NUM_INSTR_SOURCES; i++)
-        {
-            if(curr_instr.source_registers[i] == 0)
-            {
-                curr_instr.source_registers[i] = (unsigned char)r;
-                break;
-            }
-        }
-    }
+  auto set_end = std::find(begin, end, 0);
+  auto found_reg = std::find(begin, set_end, r); // check to see if this register is already in the list
+  *found_reg = r;
 }
 
-void RegWrite(REG i, UINT32 index)
+VOID StartTracing(VOID* ip)
 {
-    if(!tracing_on) return;
-
-    REG r = (REG)i;
-
-    /*
-       if(r == 26)
-       {
-    // 26 is the IP, which is read and written by branches
-    return;
-    }
-    */
-
-    //cout << "<" << r << " " << REG_StringShort((REG)r) << "> ";
-    //cout << "<" << REG_StringShort((REG)r) << "> ";
-
-    //printf("<%d> ", (int)r);
-
-    int already_found = 0;
-    for(int i=0; i<NUM_INSTR_DESTINATIONS; i++)
-    {
-        if(curr_instr.destination_registers[i] == ((unsigned char)r))
-        {
-            already_found = 1;
-            break;
-        }
-    }
-    if(already_found == 0)
-    {
-        for(int i=0; i<NUM_INSTR_DESTINATIONS; i++)
-        {
-            if(curr_instr.destination_registers[i] == 0)
-            {
-                curr_instr.destination_registers[i] = (unsigned char)r;
-                break;
-            }
-        }
-    }
-    /*
-       if(index==0)
-       {
-       curr_instr.destination_register = (unsigned long long int)r;
-       }
-       */
+  if (!tracingActive) {
+    tracingActive = true;
+    tracedInstructions = 0;
+    std::cout << "[PIN] Started tracing at IP: 0x" << std::hex << ip << std::dec << std::endl;
+  }
 }
 
-void MemoryRead(VOID* addr, UINT32 index, UINT32 read_size)
+VOID StopTracing(VOID* ip)
 {
-    if(!tracing_on) return;
-
-    //printf("0x%llx,%u ", (unsigned long long int)addr, read_size);
-
-    // check to see if this memory read location is already in the list
-    int already_found = 0;
-    for(int i=0; i<NUM_INSTR_SOURCES; i++)
-    {
-        if(curr_instr.source_memory[i] == ((unsigned long long int)addr))
-        {
-            already_found = 1;
-            break;
-        }
-    }
-    if(already_found == 0)
-    {
-        for(int i=0; i<NUM_INSTR_SOURCES; i++)
-        {
-            if(curr_instr.source_memory[i] == 0)
-            {
-                curr_instr.source_memory[i] = (unsigned long long int)addr;
-                break;
-            }
-        }
-    }
+  if (tracingActive) {
+    tracingActive = false;
+    std::cout << "[PIN] Stopped tracing at IP: 0x" << std::hex << ip << std::dec << " after " << tracedInstructions << " instructions" << std::endl;
+  }
 }
 
-void MemoryWrite(VOID* addr, UINT32 index)
+// Instrument image loads to find symbols
+VOID ImageLoad(IMG img, VOID* v)
 {
-    if(!tracing_on) return;
+  // Look for start symbol
+  if (!KnobStartSymbol.Value().empty() && !foundStartSymbol.load()) {
+    RTN rtn = RTN_FindByName(img, KnobStartSymbol.Value().c_str());
 
-    //printf("(0x%llx) ", (unsigned long long int) addr);
+    if (RTN_Valid(rtn)) {
+      foundStartSymbol.store(true);
+      RTN_Open(rtn);
+      // Insert call at function entry
+      RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StartTracing, IARG_INST_PTR, IARG_END);
+      RTN_Close(rtn);
 
-    // check to see if this memory write location is already in the list
-    int already_found = 0;
-    for(int i=0; i<NUM_INSTR_DESTINATIONS; i++)
-    {
-        if(curr_instr.destination_memory[i] == ((unsigned long long int)addr))
-        {
-            already_found = 1;
-            break;
-        }
+      std::cout << "Found start symbol '" << KnobStartSymbol.Value() << "' in image " << IMG_Name(img) << std::endl;
     }
-    if(already_found == 0)
-    {
-        for(int i=0; i<NUM_INSTR_DESTINATIONS; i++)
-        {
-            if(curr_instr.destination_memory[i] == 0)
-            {
-                curr_instr.destination_memory[i] = (unsigned long long int)addr;
-                break;
-            }
-        }
+  }
+
+  // Look for stop symbol
+  if (!KnobStopSymbol.Value().empty() && !foundStopSymbol.load()) {
+    foundStopSymbol.store(true);
+    RTN rtn = RTN_FindByName(img, KnobStopSymbol.Value().c_str());
+
+    if (RTN_Valid(rtn)) {
+      RTN_Open(rtn);
+      // Insert call at function entry (or use IPOINT_AFTER for function exit)
+      RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopTracing, IARG_INST_PTR, IARG_END);
+      RTN_Close(rtn);
+
+      std::cout << "Found stop symbol '" << KnobStopSymbol.Value() << "' in image " << IMG_Name(img) << std::endl;
     }
-    /*
-       if(index==0)
-       {
-       curr_instr.destination_memory = (long long int)addr;
-       }
-       */
+  }
+
+  if (IMG_IsMainExecutable(img)) {
+    bool exit = false;
+    if (!KnobStartSymbol.Value().empty() && !foundStartSymbol.load()) {
+      std::cerr << "[PIN] ERROR: Trace start symbol '" << KnobStartSymbol.Value() << "' not found!" << std::endl;
+      exit = true;
+    }
+    if (!KnobStopSymbol.Value().empty() && !foundStopSymbol.load()) {
+      std::cerr << "[PIN] ERROR: Trace stop symbol '" << KnobStopSymbol.Value() << "' not found!" << std::endl;
+      exit = true;
+    }
+    if (exit) {
+      PIN_ExitApplication(1);
+    }
+  }
 }
 
 /* ===================================================================== */
@@ -311,121 +208,91 @@ void MemoryWrite(VOID* addr, UINT32 index)
 /* ===================================================================== */
 
 // Is called for every instruction and instruments reads and writes
-VOID Instruction(INS ins, VOID *v)
+VOID Instruction(INS ins, VOID* v)
 {
-    // begin each instruction with this function
-    UINT32 opcode = INS_Opcode(ins);
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)BeginInstruction, IARG_INST_PTR, IARG_UINT32, opcode, IARG_END);
+  // begin each instruction with this function
+  INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ResetCurrentInstruction, IARG_INST_PTR, IARG_END);
 
-    // instrument branch instructions
-    if(INS_IsBranch(ins) && !INS_IsXbegin(ins) && !INS_IsXend(ins))
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)BranchOrNot, IARG_BRANCH_TAKEN, IARG_END);
+  // instrument branch instructions
+  if (INS_IsBranch(ins))
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)BranchOrNot, IARG_BRANCH_TAKEN, IARG_END);
 
-    // instrument register reads
-    UINT32 readRegCount = INS_MaxNumRRegs(ins);
-    for(UINT32 i=0; i<readRegCount; i++) 
-    {
-        UINT32 regNum = INS_RegR(ins, i);
+  // instrument register reads
+  UINT32 readRegCount = INS_MaxNumRRegs(ins);
+  for (UINT32 i = 0; i < readRegCount; i++) {
+    UINT32 regNum = INS_RegR(ins, i);
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)WriteToSet<unsigned char>, IARG_PTR, curr_instr.source_registers, IARG_PTR,
+                   curr_instr.source_registers + NUM_INSTR_SOURCES, IARG_UINT32, regNum, IARG_END);
+  }
 
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)RegRead,
-                IARG_UINT32, regNum, IARG_UINT32, i,
-                IARG_END);
-    }
+  // instrument register writes
+  UINT32 writeRegCount = INS_MaxNumWRegs(ins);
+  for (UINT32 i = 0; i < writeRegCount; i++) {
+    UINT32 regNum = INS_RegW(ins, i);
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)WriteToSet<unsigned char>, IARG_PTR, curr_instr.destination_registers, IARG_PTR,
+                   curr_instr.destination_registers + NUM_INSTR_DESTINATIONS, IARG_UINT32, regNum, IARG_END);
+  }
 
-    // instrument register writes
-    UINT32 writeRegCount = INS_MaxNumWRegs(ins);
-    for(UINT32 i=0; i<writeRegCount; i++) 
-    {
-        UINT32 regNum = INS_RegW(ins, i);
+  // instrument memory reads and writes
+  UINT32 memOperands = INS_MemoryOperandCount(ins);
 
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)RegWrite,
-                IARG_UINT32, regNum, IARG_UINT32, i,
-                IARG_END);
-    }
+  // Iterate over each memory operand of the instruction.
+  for (UINT32 memOp = 0; memOp < memOperands; memOp++) {
+    if (INS_MemoryOperandIsRead(ins, memOp))
+      INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)WriteToSet<unsigned long long int>, IARG_PTR, curr_instr.source_memory, IARG_PTR,
+                     curr_instr.source_memory + NUM_INSTR_SOURCES, IARG_MEMORYOP_EA, memOp, IARG_END);
+    if (INS_MemoryOperandIsWritten(ins, memOp))
+      INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)WriteToSet<unsigned long long int>, IARG_PTR, curr_instr.destination_memory, IARG_PTR,
+                     curr_instr.destination_memory + NUM_INSTR_DESTINATIONS, IARG_MEMORYOP_EA, memOp, IARG_END);
+  }
 
-    // instrument memory reads and writes
-    UINT32 memOperands = INS_MemoryOperandCount(ins);
-
-    // Iterate over each memory operand of the instruction.
-    for (UINT32 memOp = 0; memOp < memOperands; memOp++) 
-    {
-        if (INS_MemoryOperandIsRead(ins, memOp)) 
-        {
-            UINT32 read_size = INS_MemoryReadSize(ins);
-
-            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)MemoryRead,
-                    IARG_MEMORYOP_EA, memOp, IARG_UINT32, memOp, IARG_UINT32, read_size,
-                    IARG_END);
-        }
-        if (INS_MemoryOperandIsWritten(ins, memOp)) 
-        {
-            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)MemoryWrite,
-                    IARG_MEMORYOP_EA, memOp, IARG_UINT32, memOp,
-                    IARG_END);
-        }
-    }
-
-    // finalize each instruction with this function
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)EndInstruction, IARG_END);
+  // finalize each instruction with this function
+  INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)ShouldWrite, IARG_END);
+  INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)WriteCurrentInstruction, IARG_END);
 }
 
 /*!
  * Print out analysis results.
  * This function is called when the application exits.
  * @param[in]   code            exit code of the application
- * @param[in]   v               value specified by the tool in the 
+ * @param[in]   v               value specified by the tool in the
  *                              PIN_AddFiniFunction function call
  */
-VOID Fini(INT32 code, VOID *v)
-{
-    // close the file if it hasn't already been closed
-    if(!output_file_closed) 
-    {
-        fclose(out);
-        output_file_closed = true;
-    }
-}
+VOID Fini(INT32 code, VOID* v) { outfile.close(); }
 
 /*!
  * The main procedure of the tool.
  * This function is called when the application image is loaded but not yet started.
  * @param[in]   argc            total number of elements in the argv array
- * @param[in]   argv            array of command line arguments, 
+ * @param[in]   argv            array of command line arguments,
  *                              including pin -t <toolname> -- ...
  */
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
-    // Initialize PIN library. Print help message if -h(elp) is specified
-    // in the command line or the command line is invalid 
-    if( PIN_Init(argc,argv) )
-        return Usage();
+  PIN_InitSymbols();
 
-    const char* fileName = KnobOutputFile.Value().c_str();
+  // Initialize PIN library. Print help message if -h(elp) is specified
+  // in the command line or the command line is invalid
+  if (PIN_Init(argc, argv))
+    return Usage();
 
-    out = fopen(fileName, "ab");
-    if (!out) 
-    {
-        cout << "Couldn't open output trace file. Exiting." << endl;
-        exit(1);
-    }
+  outfile.open(KnobOutputFile.Value().c_str(), std::ios_base::binary | std::ios_base::trunc);
+  if (!outfile) {
+    std::cout << "Couldn't open output trace file. Exiting." << std::endl;
+    exit(1);
+  }
 
-    // Register function to be called to instrument instructions
-    INS_AddInstrumentFunction(Instruction, 0);
+  // Register function to perform symbol lookup
+  IMG_AddInstrumentFunction(ImageLoad, 0);
 
-    // Register function to be called when the application exits
-    PIN_AddFiniFunction(Fini, 0);
+  // Register function to be called to instrument instructions
+  INS_AddInstrumentFunction(Instruction, 0);
 
-    //cerr <<  "===============================================" << endl;
-    //cerr <<  "This application is instrumented by the Champsim Trace Generator" << endl;
-    //cerr <<  "Trace saved in " << KnobOutputFile.Value() << endl;
-    //cerr <<  "===============================================" << endl;
+  // Register function to be called when the application exits
+  PIN_AddFiniFunction(Fini, 0);
 
-    // Start the program, never returns
-    PIN_StartProgram();
+  // Start the program, never returns
+  PIN_StartProgram();
 
-    return 0;
+  return 0;
 }
-
-/* ===================================================================== */
-/* eof */
-/* ===================================================================== */

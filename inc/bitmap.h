@@ -1,6 +1,8 @@
 #ifndef BITMAP_H
 #define BITMAP_H
 
+#include <cstdint>
+
 #include <bitset>
 #include <string>
 #define BITMAP_MAX_SIZE 64

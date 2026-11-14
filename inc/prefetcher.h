@@ -1,6 +1,8 @@
 #ifndef PREFETCHER_H
 #define PREFETCHER_H
 
+#include <cstdint>
+
 #include <string>
 #include <vector>
 

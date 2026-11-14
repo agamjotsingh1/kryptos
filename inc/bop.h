@@ -1,6 +1,8 @@
 #ifndef BOP_H
 #define BOP_H
 
+#include <cstdint>
+
 #include <vector>
 #include <deque>
 #include "prefetcher.h"

@@ -1,0 +1,4 @@
+[2026-11-14 11:18:04.287270122 UTC] [225620:225621] [PIND]: Pin command line: /home/agam/pin-external-4.3-99850-gce5652921-gcc-linux/pin -injection child -t tracer/obj-intel64/champsim_tracer.so -o /tmp/claude-1000/-home-agam-Github-kryptos/c7385257-7f4c-476e-992d-0c7f05778c70/scratchpad/t.trace -start_symbol __champsim_start_trace -t 2000000 -- build/demo_victim.out
+Pin: pin-4.3-99850-ce5652921
+Copyright 2002-2026 Intel Corporation.
+E:  [tid:225618] unknown option "-injection"

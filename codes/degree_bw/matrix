@@ -1,0 +1,29 @@
+# degree_bw run matrix  (read by scripts/launch.sh)
+#
+# Declares the co-location runs for this attack. When this file is present,
+# launch.sh ignores its default victim+attacker / victim+idle x {nopref,pythia}
+# layout and instead builds the matrix below: one victim trace on core 0,
+# co-located against each NEIGHBOR trace on core 1, crossed with each CONFIG.
+#
+# Columns are whitespace-separated. Lines starting with '#' and blanks ignored.
+#
+#   victim   <source>                 [prog-args...]
+#   neighbor <name> <source>          [prog-args...]
+#   config   <name> <ini>
+#
+# <source> is resolved relative to this attack dir first, then codes/.
+# Trace args (idle/light/...) are passed to the workload under PIN, so one
+# source (attacker.c) yields several neighbor traces by argument alone.
+# Output .out files are named <neighbor>_<config>.out (consumed by rollup.py).
+
+victim   victim.c
+
+neighbor atk_idle      attacker.c      idle
+neighbor atk_light     attacker.c      light
+neighbor atk_medium    attacker.c      medium
+neighbor atk_heavy     attacker.c      heavy
+# benign co-location negative control == shared idle trace (busy core, ~0 DRAM)
+neighbor benign_cache  _common/idle.c
+
+config   bwaware   bwaware.ini
+config   bwblind   bwblind.ini

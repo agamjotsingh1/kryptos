@@ -1,0 +1,20 @@
+NAME=atk_idle
+TRACE=$(PYTHIA_HOME)/traces/degree_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/degree_bw_atk_idle.champsimtrace.xz
+KNOBS=
+
+NAME=atk_light
+TRACE=$(PYTHIA_HOME)/traces/degree_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/degree_bw_atk_light.champsimtrace.xz
+KNOBS=
+
+NAME=atk_medium
+TRACE=$(PYTHIA_HOME)/traces/degree_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/degree_bw_atk_medium.champsimtrace.xz
+KNOBS=
+
+NAME=atk_heavy
+TRACE=$(PYTHIA_HOME)/traces/degree_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/degree_bw_atk_heavy.champsimtrace.xz
+KNOBS=
+
+NAME=benign_cache
+TRACE=$(PYTHIA_HOME)/traces/degree_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/degree_bw_benign_cache.champsimtrace.xz
+KNOBS=
+

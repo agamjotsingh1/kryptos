@@ -1,6 +1,8 @@
 #ifndef STRIDE_H
 #define STRIDE_H
 
+#include <cstdint>
+
 #include <deque>
 #include <vector>
 #include "prefetcher.h"

@@ -1,0 +1,7 @@
+NAME=demo_attack
+TRACE=$(PYTHIA_HOME)/traces/demo_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/demo_attacker.champsimtrace.xz
+KNOBS=
+
+NAME=demo_idle
+TRACE=$(PYTHIA_HOME)/traces/demo_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/idle.champsimtrace.xz
+KNOBS=

@@ -1,6 +1,8 @@
 #ifndef SMS_H
 #define SMS_H
 
+#include <cstdint>
+
 #include <vector>
 #include <deque>
 #include "bitmap.h"

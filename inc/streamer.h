@@ -1,6 +1,8 @@
 #ifndef STREAMER_H
 #define STREAMER_H
 
+#include <cstdint>
+
 #include <deque>
 #include "prefetcher.h"
 using namespace std;

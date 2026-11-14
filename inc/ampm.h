@@ -1,6 +1,8 @@
 #ifndef AMPM_H
 #define AMPM_H
 
+#include <cstdint>
+
 #include <deque>
 #include <vector>
 #include "prefetcher.h"

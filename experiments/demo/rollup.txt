@@ -1,0 +1,9 @@
+
+=== Attack 'demo' rollup ===
+config      vIPC idle  vIPC attack     aIPC  slowdown   impact%
+--------------------------------------------------------------
+nopref         1.2705       1.2705   0.2179     1.000     0.00%
+pythia         1.3380       1.3380   0.2179     1.000     0.00%
+
+Pythia amplifies the attack: slowdown 1.000 (nopref) -> 1.000 (pythia), delta +0.000
+
