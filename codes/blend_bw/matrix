@@ -1,0 +1,43 @@
+# blend_bw run matrix  (read by scripts/launch.sh)
+#
+# Time-toggled duty-cycle policy steering (blend_bw_methodology). ONE victim on core 0
+# (IDENTICAL to pband_bw's mixed-predictability victim), co-located against the SAME
+# attacker at THREE duty cycles on core 1, crossed with aware (reward live) and blind
+# (reward inert). 3 neighbors x 2 configs = 6 runs.
+#
+#   victim   <source>                 [prog-args...]
+#   neighbor <name> <source>          [prog-args...]
+#   config   <name> <ini>
+#
+# Output .out files are named <neighbor>_<config>.out (consumed by rollup.py).
+# rollup.py also reads build/blend_bw_victim.out (via nm) to map trigger PCs to the
+# victim's blend_pc_<j> load sites.
+
+victim   victim.c
+
+# TIME-TOGGLED duty cycle. Attacker args are "<on_lines> <off_iters>": ON streams
+# on_lines fresh 64 MiB lines (saturates the shared bucket), OFF does off_iters pure-ALU
+# ops (lets the bucket EWMA decay). Raising the on:off ratio raises the effective blend
+# fraction d (= the victim's measured bw3, reported by rollup). The three settings are a
+# STARTING TRIPLET meant to span low / mid / high d; they almost certainly need one
+# CALIBRATION pass -- run short (LOCAL=1, small SIM), read bw3 per run, and adjust the
+# ratios so bw3 lands near ~0.3 / ~0.6 / ~0.9, AND sweep the period (scale both numbers
+# together) to find the window where the mid duty is a STABLE intermediate rather than
+# snapping to 0/1 (see attacker.c window caveat). rollup orders the bars by measured bw3.
+#
+# CALIBRATED from three 10M runs (on/off -> measured d=bw3):
+#   64/4096->0.04, 256/2048->0.25, 1024/2048->0.52, 1024/512->0.67, 4096/64->0.77
+# Key finding: d SATURATES at ~0.77 for any nonzero off (the throttled victim under-samples
+# its own ON phase); only off=0 (= pband heavy) reaches ~0.94. So the reachable duty is
+# [~0.04, ~0.77]. We pick three WELL-SPACED points in that reachable range:
+#   atk_d_lo  256/2048 -> d~0.25,  atk_d_mid 1024/2048 -> d~0.52,  atk_d_hi 4096/64 -> d~0.77
+# The victim's contestable p's (0.16/0.21/0.26, see config.h) flip at d_crit 0.07/0.28/0.51,
+# all inside this range -> each should flip, in order, across the three duties.
+neighbor atk_d_lo   attacker.c   256  2048
+neighbor atk_d_mid  attacker.c  1024  2048
+neighbor atk_d_hi   attacker.c  4096    64
+
+# aware = HBW reward table live (attack); blind = reward table inert (isolation).
+# Both pin the HBW degree curve EQUAL to normal and enable the per-PC counter.
+config   aware   aware.ini
+config   blind   blind.ini
