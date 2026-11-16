@@ -9,10 +9,21 @@ byte-for-byte identical (the decisive isolation control, gate D).
 Run: python3 -m unittest -v (from codes/filltime_steer/tests/)
 """
 import os
+import re
+import sys
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ATTACK_DIR = os.path.dirname(HERE)
+sys.path.insert(0, ATTACK_DIR)
+
+
+def _config_macro_list(name):
+    with open(os.path.join(ATTACK_DIR, "config.h")) as f:
+        txt = f.read()
+    m = re.search(r"#define\s+%s\s*\{([^}]*)\}" % re.escape(name), txt)
+    assert m, f"macro {name} not found in config.h"
+    return [int(x) for x in m.group(1).replace(" ", "").split(",") if x != ""]
 
 
 def parse_ini(name):
@@ -66,6 +77,26 @@ class TestConfigs(unittest.TestCase):
                 p2 = os.path.join(os.path.dirname(ATTACK_DIR), src)
                 self.assertTrue(os.path.isfile(p1) or os.path.isfile(p2),
                                 f"neighbor source not found: {src}")
+
+
+class TestOffsetTableConsistency(unittest.TestCase):
+    """The offset table lives in config.h (labels), rollup.py (analysis) and the victim
+    selftest. config.h's VICTIM_PC_OSHORT/OLONG are analysis-side labels not used by
+    victim.c (which marches by STRIDE); this guards against silent drift that would
+    misattribute per-PC reward.dist."""
+
+    def test_config_offsets_match_rollup(self):
+        import rollup
+        self.assertEqual(_config_macro_list("VICTIM_PC_OSHORT"), rollup.OSHORT)
+        self.assertEqual(_config_macro_list("VICTIM_PC_OLONG"), rollup.OLONG)
+
+    def test_offsets_are_stride_multiples(self):
+        stride = _config_macro_list("VICTIM_PC_STRIDE")
+        osh = _config_macro_list("VICTIM_PC_OSHORT")
+        olo = _config_macro_list("VICTIM_PC_OLONG")
+        for j, s in enumerate(stride):
+            self.assertEqual(osh[j] % s, 0, f"PC{j} O_short {osh[j]} not a multiple of stride {s}")
+            self.assertEqual(olo[j] % s, 0, f"PC{j} O_long {olo[j]} not a multiple of stride {s}")
 
 
 if __name__ == "__main__":

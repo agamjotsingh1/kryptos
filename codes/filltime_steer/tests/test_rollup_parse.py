@@ -54,6 +54,12 @@ class TestParse(unittest.TestCase):
         self.assertEqual(self.p["deg_dist"][4], 10)
         self.assertAlmostEqual(self.p["Core_0_IPC"], 1.23)
 
+    def test_victim_timely_fraction_and_bucket(self):
+        # the quantitative evidence of the negative must be parseable/committable:
+        # timely 80 / (timely 80 + untimely 28); bucket L3 = 2 / (10+3+1+2)
+        self.assertAlmostEqual(self.p["victim_timely_fraction"], 80 / 108)
+        self.assertAlmostEqual(self.p["bw3"], 2 / 16)
+
 
 class TestMetrics(unittest.TestCase):
     def setUp(self):

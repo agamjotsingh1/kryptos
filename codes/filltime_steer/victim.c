@@ -1,21 +1,21 @@
 /*
  * victim.c - 'filltime_steer' victim workload (runs on core 0).
  *
- * DUAL-TOUCH victim (spec 5-A; see config.h). Five load PCs ft_pc_<j>, each with its own
- * disjoint 1 MiB region. Every period, PC j demands THREE lines from one static load
- * site: base, base+O_short[j], base+O_long[j], then advances base by PERIOD[j] =
- * O_long[j] + GAP. From the `base` trigger, BOTH O_short and O_long are future demands
- * within the reuse window, so whichever offset Pythia prefetches is always correct and
- * only fill TIMING separates them. The attacker (core 1) raises shared-memory fill
- * latency, moving the timely/untimely crossover O* = L/T_line; contestable PCs (small
- * O_short) flip short->long, anchors (large O_short) stay timely.
+ * DUAL-TOUCH victim (spec 5-A; see config.h). FOUR load PCs ft_pc_<j>, each with its own
+ * disjoint 1 MiB region. Each PC is a SINGLE-LOAD CONSTANT-STRIDE MARCH: one load, then
+ * cursor += S[j]. So EVERY access is a Pythia trigger, and from any trigger at line X the
+ * future demands are X+S, X+2S, X+3S, ...; O_short[j] and O_long[j] are chosen as two
+ * multiples of S[j] that are scooby_actions, so BOTH are always future demands -> whichever
+ * offset Pythia prefetches is always correct and only fill TIMING separates them.
+ * (An earlier 3-loads-per-period design made only 1/3 of triggers clean -> 98% incorrect;
+ * replaced per Task 6. See ATTACK.md for the NEGATIVE result: raising fill latency does NOT
+ * steer, because O*=L/T_line is contention-invariant for a memory-bound victim.)
  *
- * ---- FIVE DISTINCT, NAMED LOAD PCs ----
- * Per-PC readout needs five distinct static load sites; rollup.py maps each
+ * ---- FOUR DISTINCT, NAMED LOAD PCs ----
+ * Per-PC readout needs four distinct static load sites; rollup.py maps each
  * scooby_per_pc_<ip> to the ft_pc_<j> symbol whose body contains <ip> via `nm` on the
  * static, non-PIE binary (gen_trace.sh: -static -no-pie). So each PC lives in its own
- * NOINLINE function ft_pc_<j> containing exactly one region-load instruction (executed
- * three times per period over an offset table).
+ * NOINLINE function ft_pc_<j> containing exactly one region-load instruction.
  *
  * The traced region is an effectively infinite loop; PIN starts at
  * __champsim_start_trace() and stops after TRACE_INSTR instructions.

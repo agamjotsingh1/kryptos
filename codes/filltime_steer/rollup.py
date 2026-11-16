@@ -46,6 +46,7 @@ RE_DIST = re.compile(r"^scooby_reward_(-?\d+)\s+([\d,]+)\s*$", re.M)
 RE_ACT = re.compile(r"^scooby_predict_action_(-?\d+)\s+(\d+)\s*$", re.M)
 RE_PERPC = re.compile(r"^scooby_per_pc_([0-9a-fA-F]+)\s+([0-9,]+)\s*$", re.M)
 RE_DEG = re.compile(r"^scooby_selected_deg_(\d+)\s+(\d+)\s*$", re.M)
+RE_BW = re.compile(r"^scooby_bw_level_(\d+)\s+(\d+)\s*$", re.M)
 RE_HIGHBW = re.compile(r"^scooby_reward_\w+_high_bw\s+(\d+)\s*$", re.M)
 RE_IPC = re.compile(r"^Core_0_IPC\s+([0-9.]+)", re.M)
 
@@ -89,6 +90,14 @@ def parse_out(path):
     hb = [int(x) for x in RE_HIGHBW.findall(victim)]
     out["reward_high_bw_total"] = sum(hb)
     out["is_high_bw_fired"] = sum(hb) > 0
+
+    # victim timeliness + bucket evidence (the quantitative core of the result)
+    tim, unt = out["reward_timely"], out["reward_untimely"]
+    out["victim_timely_fraction"] = (tim / (tim + unt)) if (tim + unt) else None
+    bw = {int(k): int(v) for k, v in RE_BW.findall(victim)}
+    sbw = sum(bw.values())
+    out["bw_frac"] = {L: (bw.get(L, 0) / sbw if sbw else 0.0) for L in range(4)}
+    out["bw3"] = out["bw_frac"][3]
 
     m = RE_IPC.search(text)
     out["Core_0_IPC"] = float(m.group(1)) if m else None
@@ -287,12 +296,24 @@ def evaluate_gates(runs, pcmap):
     g["D'"] = (okDp, f"max contestable incorrect-fraction {worst:.3f} (<= {INCORRECT_MAX}, "
                      f">= {MIN_OFFSET_SAMPLES} samples)")
 
-    # E. bandwidth-orthogonal: is_high_bw never fires, no high-bw reward in any run
+    # E. bandwidth reward never applied. NOTE: this is a NECESSARY check, not the isolation
+    # proof. With enable_hbw_reward=false the *_high_bw columns are structurally 0 whatever
+    # the bucket does (scooby.cc:722), so this gate cannot by itself prove is_high_bw never
+    # fired. The real structural isolation is scooby_high_bw_thresh=4 > max bucket level 3
+    # (asserted by test_configs.test_bandwidth_path_off). We also report that the bucket DID
+    # reach L3 under attack, so the zero is not merely "contention never reached the bucket".
     okE, bad = True, []
     for key, r in runs.items():
         if r.get("is_high_bw_fired") or r.get("reward_high_bw_total", 0) > 0:
             okE = False; bad.append("_".join(key))
-    g["E"] = (okE, "bandwidth path off" if okE else f"HIGH-BW FIRED in {bad}")
+    bw3_hi = runs.get(("atk_hi", "aware"), {}).get("bw3")
+    if okE:
+        detail = ("bandwidth REWARD never applied (necessary check); structural isolation is "
+                  f"high_bw_thresh=4 > max bucket 3 (see test_configs). bucket reached L3 "
+                  f"frac={_fmt(bw3_hi)} under atk_hi -> contention did reach the bucket")
+    else:
+        detail = f"HIGH-BW FIRED in {bad}"
+    g["E"] = (okE, detail)
 
     # F. benign ~ idle: mere LLC-resident co-location does nothing
     bn = _lf(runs, pcmap, "benign", "aware")
@@ -360,6 +381,18 @@ def main():
             cells.append(f"{_fmt(lf):>8}")
         print(f"  {j}{role} O{OSHORT[j]}/{OLONG[j]}  " + "  ".join(cells))
 
+    # victim evidence: the quantitative core of the (negative) result
+    print("\nvictim fill-timing evidence (aware):")
+    print("  " + "".join(f"{nb:>10}" for nb in neighbors if (nb, "aware") in runs))
+    for label, key in (("timely-frac", "victim_timely_fraction"), ("IPC", "Core_0_IPC"),
+                       ("bucket L3", "bw3")):
+        cells = []
+        for nb in neighbors:
+            if (nb, "aware") not in runs:
+                continue
+            cells.append(f"{_fmt(runs[(nb, 'aware')].get(key)):>10}")
+        print(f"  {label:<12}" + "".join(cells))
+
     g = evaluate_gates(runs, pcmap)
     print("\ngates:")
     npass = 0
@@ -371,14 +404,18 @@ def main():
 
     if args.csv:
         with open(args.csv, "w") as f:
-            f.write("neighbor,config," + ",".join(f"pc{j}_longfrac" for j in range(N_PC)) + "\n")
+            f.write("neighbor,config,timely_frac,ipc,bucket_l3,"
+                    + ",".join(f"pc{j}_longfrac" for j in range(N_PC)) + "\n")
             for nb in neighbors:
                 for cfg in configs:
                     key = (nb, cfg)
                     if key not in runs or "missing" in runs[key]:
                         continue
-                    lf = per_pc_long_fraction(runs[key], pcmap.get(key, {}))
-                    f.write(f"{nb},{cfg}," + ",".join(_fmt(lf.get(j)) for j in range(N_PC)) + "\n")
+                    r = runs[key]
+                    lf = per_pc_long_fraction(r, pcmap.get(key, {}))
+                    f.write(f"{nb},{cfg},{_fmt(r.get('victim_timely_fraction'),3)},"
+                            f"{_fmt(r.get('Core_0_IPC'),3)},{_fmt(r.get('bw3'),3)},"
+                            + ",".join(_fmt(lf.get(j)) for j in range(N_PC)) + "\n")
         print(f"csv written to {args.csv}")
 
     if args.plot:
@@ -411,8 +448,8 @@ def _make_plot(runs, pcmap, neighbors, path):
                         for j in range(N_PC)], fontsize=8)
     ax.set_ylim(0, 1.0)
     ax.set_ylabel("per-PC long-offset fraction")
-    ax.set_title("filltime_steer: rising attacker fill-latency steers contestable PCs "
-                 "short->long\n(bandwidth path OFF; anchors hold)", fontsize=9.5)
+    ax.set_title("filltime_steer (NEGATIVE): long-fraction is invariant to attacker intensity\n"
+                 "the fill-timing channel does NOT steer (bandwidth path OFF)", fontsize=9.5)
     ax.legend(frameon=False, fontsize=8, title="intensity")
     fig.tight_layout()
     fig.savefig(path, dpi=150)

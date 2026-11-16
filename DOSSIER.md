@@ -314,9 +314,10 @@ bandwidth path turned **off** (`scooby_high_bw_thresh = 4`). The attacker raises
 prefetch **fill latency** `L` by shared-LLC/DRAM contention, aiming to move the timeliness
 crossover `O* = L / T_line` and steer which prefetch **distance** a (dual-touch) victim learns.
 
-**Result: a clean negative.** The channel is real and provably bandwidth-independent (the
-isolation gate passes: `is_high_bw` never fires, all `*_high_bw` reward counts are 0), and the
-dual-touch victim works (`incorrect` ≈ 0.009). But the attacker **cannot steer it**: although it
+**Result: a clean negative.** The channel is real and bandwidth-independent *structurally* —
+`scooby_high_bw_thresh = 4 > max bucket level 3`, so `is_high_bw()` can never fire even though
+the bucket saturates under attack (L3 fraction 0→0.92) — and the dual-touch victim works
+(`incorrect` ≈ 0.009). But the attacker **cannot steer it**: although it
 contends measurably (victim IPC 1.39→1.25, bucket 0→saturated), the victim's timely-fraction is
 **invariant** (0.396→0.390 at default degree; 1.00→0.98 at pinned degree=1). No offset ever
 flips (2 of 7 gates — the steering gates — fail by reality, not tuning).

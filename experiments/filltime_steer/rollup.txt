@@ -1,4 +1,4 @@
-=== filltime_steer rollup (/home/agam/Github/kryptos/experiments/filltime_steer) ===
+=== filltime_steer rollup (experiments/filltime_steer) ===
 
 per-PC long-offset fraction (aware):
   PC      idle    benign    atk_lo   atk_mid    atk_hi
@@ -7,15 +7,21 @@ per-PC long-offset fraction (aware):
   2C O11/22      0.00      0.00      0.00      0.00      0.00
   3A O3/30      0.00      0.00      0.00      0.00      0.00
 
+victim fill-timing evidence (aware):
+        idle    benign    atk_lo   atk_mid    atk_hi
+  timely-frac       0.40      0.40      0.40      0.40      0.39
+  IPC               1.39      1.37      1.37      1.35      1.25
+  bucket L3         0.00      0.00      0.00      0.37      0.92
+
 gates:
   [FAIL] A: distance steer PC0:0.00->0.00, PC1:0.00->0.00, PC2:0.00->0.00
   [FAIL] B: crossover PC0:short 0.34->0.34, long@hi 0.08, PC1:short 0.27->0.27, long@hi 0.35, PC2:short 0.83->0.80, long@hi 0.17
   [PASS] C: selectivity cross-order [4, 4, 4] ordered=True; anchors PC3:0.00->0.00
   [PASS] D: isolation(flat) PC0:0.00->0.00, PC1:0.00->0.00, PC2:0.00->0.00
   [PASS] D': max contestable incorrect-fraction 0.009 (<= 0.1, >= 200 samples)
-  [PASS] E: bandwidth path off
+  [PASS] E: bandwidth REWARD never applied (necessary check); structural isolation is high_bw_thresh=4 > max bucket 3 (see test_configs). bucket reached L3 frac=0.92 under atk_hi -> contention did reach the bucket
   [PASS] F: benign~idle PC0:0.00, PC1:0.00, PC2:0.00
 
 5/7 gates pass
-csv written to /home/agam/Github/kryptos/experiments/filltime_steer/rollup.csv
-chart written to /home/agam/Github/kryptos/experiments/filltime_steer/degree_dist.png
+csv written to experiments/filltime_steer/rollup.csv
+chart written to experiments/filltime_steer/long_fraction.png

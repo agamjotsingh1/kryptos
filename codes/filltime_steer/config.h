@@ -27,8 +27,11 @@
  *    0  contestable  5      5       10     O_short=S, O_long=2S
  *    1  contestable  4      4       12     O_long=3S
  *    2  contestable 11     11       22     O_long=2S
- *    3  anchor       3      3       30     O_long=10S; HIGH ALU (long T_line) keeps
- *                                          O_short timely at every intensity -> never flips
+ *    3  anchor       3      3       30     O_long=10S; HIGH ALU. (Empirically PC3 never
+ *                                          flips -- but see ATTACK.md: it stays short
+ *                                          because O_long is under-explored/OOB, NOT because
+ *                                          O_short is timely; offset 3 is in fact the LEAST
+ *                                          timely offset. The whole attack is a NEGATIVE.)
  * All eight offsets are in scooby_actions (1,3,4,5,10,11,12,22,23,30,32,...) and globally
  * unique, so reward.dist[action][type] (aggregated over all PCs) is per-PC attributable.
  * Offset 1 excluded (featurewise +1 fallback attractor). Offsets tiny vs scooby_pt_size
