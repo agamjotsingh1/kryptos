@@ -32,16 +32,17 @@ def mk_run(long_by_pc, short_timely_by_pc, long_timely_by_pc,
         pcmap[j] = ip
         lf = long_by_pc[j]
         counts = [0] * len(rollup.ACTIONS)
-        counts[rollup.ACTIONS.index(rollup.OSHORT[j])] = int(round((1 - lf) * 100))
-        counts[rollup.ACTIONS.index(rollup.OLONG[j])] = int(round(lf * 100))
+        # scale to 1000 so offsets clear rollup.MIN_OFFSET_SAMPLES (fractions unchanged)
+        counts[rollup.ACTIONS.index(rollup.OSHORT[j])] = int(round((1 - lf) * 1000))
+        counts[rollup.ACTIONS.index(rollup.OLONG[j])] = int(round(lf * 1000))
         per_pc[ip] = dict(zip(rollup.ACTIONS, counts))
-        st, inc = short_timely_by_pc[j], short_incorrect_by_pc[j]
+        st, inc = short_timely_by_pc[j] * 10, short_incorrect_by_pc[j] * 10
         reward_dist[rollup.OSHORT[j]] = {"none": 0, "incorrect": inc,
-                                         "untimely": max(0, 100 - st - inc),
+                                         "untimely": max(0, 1000 - st - inc),
                                          "timely": st, "oob": 0, "tracker": 0}
-        lt = long_timely_by_pc[j]
+        lt = long_timely_by_pc[j] * 10
         reward_dist[rollup.OLONG[j]] = {"none": 0, "incorrect": 0,
-                                        "untimely": max(0, 100 - lt), "timely": lt,
+                                        "untimely": max(0, 1000 - lt), "timely": lt,
                                         "oob": 0, "tracker": 0}
     parsed = {"per_pc": per_pc, "reward_dist": reward_dist,
               "is_high_bw_fired": high_bw > 0, "reward_high_bw_total": high_bw,

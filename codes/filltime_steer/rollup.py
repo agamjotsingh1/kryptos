@@ -112,6 +112,17 @@ def offset_incorrect_fraction(parsed, offset):
     return d["incorrect"] / denom if denom else None
 
 
+def offset_samples(parsed, offset):
+    """Prefetch-outcome samples for this offset (timely+untimely+incorrect). A fraction
+    computed over a handful of exploration samples is noise, so gates ignore offsets below
+    MIN_OFFSET_SAMPLES -- otherwise a long offset Pythia picked ~100x reports a spurious
+    incorrect-fraction near 1.0."""
+    d = parsed.get("reward_dist", {}).get(offset)
+    if not d:
+        return 0
+    return d["timely"] + d["untimely"] + d["incorrect"]
+
+
 def per_pc_long_fraction(parsed, mapping):
     """{pc_index: O_long selections / (O_short+O_long selections)} for mapped trigger ips."""
     out = {}
@@ -184,6 +195,7 @@ SHORT_TIMELY_FALL = 0.20 # B: O_short timely-fraction must fall at least this
 LONG_TIMELY_HOLD = 0.60  # B: O_long timely-fraction stays at/above this at atk_hi
 ANCHOR_DELTA_MAX = 0.15  # C: an anchor's long-fraction barely moves
 INCORRECT_MAX = 0.10     # D': contestable-offset incorrect-fraction stays ~0
+MIN_OFFSET_SAMPLES = 200 # D'/B: ignore offsets with too few prefetch-outcome samples
 FLAT_DELTA_MAX = 0.15    # D: flat atk_hi vs flat idle, contestable long-fraction
 BENIGN_DELTA_MAX = 0.15  # F: benign vs idle, contestable long-fraction
 
@@ -265,12 +277,15 @@ def evaluate_gates(runs, pcmap):
         r = runs.get((nb, "aware"), {})
         for j in CONTEST:
             for off in (OSHORT[j], OLONG[j]):
+                if offset_samples(r, off) < MIN_OFFSET_SAMPLES:
+                    continue   # too few samples -> fraction is noise (spec: exploration)
                 fr = offset_incorrect_fraction(r, off)
                 if fr is not None:
                     worst = max(worst, fr)
                     if fr > INCORRECT_MAX:
                         okDp = False
-    g["D'"] = (okDp, f"max contestable incorrect-fraction {worst:.3f} (<= {INCORRECT_MAX})")
+    g["D'"] = (okDp, f"max contestable incorrect-fraction {worst:.3f} (<= {INCORRECT_MAX}, "
+                     f">= {MIN_OFFSET_SAMPLES} samples)")
 
     # E. bandwidth-orthogonal: is_high_bw never fires, no high-bw reward in any run
     okE, bad = True, []
