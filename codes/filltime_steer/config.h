@@ -69,6 +69,17 @@
 #define FT_SELFTEST_ITERS 300
 
 /* ---------------------------------------------------------------- attacker -- */
-/* Filled in Task 2. */
+/* Blind streaming rate dial (spec 6). Usage: ./attacker <region_log2> <alu_pad>.
+ * Each iteration streams one fresh line of a 2^region_log2-byte region (persistent
+ * cursor -> keeps missing LLC when region >> LLC) then does alu_pad register-only ops.
+ * Lower alu_pad -> higher sustained DRAM request rate -> higher shared-queue latency ->
+ * longer victim fills (the graded intensity dial). region_log2 small (e.g. 18 = 256 KiB)
+ * -> LLC-resident -> DRAM-quiet (the `benign` co-location control).
+ * The attacker references ONLY its own region; it is blind and open-loop. */
+#define ATK_REGION_LOG2_MAX 26
+#define ATK_REGION_HEAVY    (1UL << ATK_REGION_LOG2_MAX)   /* 64 MiB - always misses LLC */
+
+/* Selftest only: streaming iterations to count for the rate-dial check. */
+#define ATK_SELFTEST_ITERS 200000UL
 
 #endif /* KRYPTOS_FILLTIME_STEER_CONFIG_H */
