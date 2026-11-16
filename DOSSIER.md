@@ -305,6 +305,32 @@ family (degree curve *and* reward table, binary switch *and* graded form).
 
 ---
 
+## 6.5 A studied channel that does **not** work — `filltime_steer`
+
+A fifth experiment (`codes/filltime_steer/`, spec
+`docs/superpowers/specs/2026-11-16-filltime-steer-design.md`) attacked a **different** Pythia
+surface: the base reward's **timely (+20) / untimely (+12)** classification, with the
+bandwidth path turned **off** (`scooby_high_bw_thresh = 4`). The attacker raises the victim's
+prefetch **fill latency** `L` by shared-LLC/DRAM contention, aiming to move the timeliness
+crossover `O* = L / T_line` and steer which prefetch **distance** a (dual-touch) victim learns.
+
+**Result: a clean negative.** The channel is real and provably bandwidth-independent (the
+isolation gate passes: `is_high_bw` never fires, all `*_high_bw` reward counts are 0), and the
+dual-touch victim works (`incorrect` ≈ 0.009). But the attacker **cannot steer it**: although it
+contends measurably (victim IPC 1.39→1.25, bucket 0→saturated), the victim's timely-fraction is
+**invariant** (0.396→0.390 at default degree; 1.00→0.98 at pinned degree=1). No offset ever
+flips (2 of 7 gates — the steering gates — fail by reality, not tuning).
+
+**Why, and why it matters for the four above.** A prefetch of offset `O` is timely iff
+`L < O·T_line`, but the memory-bound victim's per-line time `T_line ≈ L` (its demands miss to the
+*same* shared memory the prefetch fills from), so `O* = L / T_line` is **contention-invariant** —
+raising `L` lengthens the victim's lead-time in lock-step. The fill-timing channel carries a
+latency **ratio**, which self-cancels; the bandwidth channel (§2) carries an **absolute** bucket,
+which does not. **That is the sharper statement of why the four attacks work:** Pythia is
+steerable through signals it reads in *absolute* terms (the bandwidth bucket), not through ones
+that reach it only as a *ratio* of two quantities the attacker moves together. The §6 per-core
+mitigation is unaffected — this channel needed no fix because it was never weaponizable.
+
 ## 7. How to run
 
 ```bash
