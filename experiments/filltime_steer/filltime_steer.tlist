@@ -1,0 +1,20 @@
+NAME=idle
+TRACE=$(PYTHIA_HOME)/traces/filltime_steer_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/filltime_steer_idle.champsimtrace.xz
+KNOBS=
+
+NAME=benign
+TRACE=$(PYTHIA_HOME)/traces/filltime_steer_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/filltime_steer_benign.champsimtrace.xz
+KNOBS=
+
+NAME=atk_lo
+TRACE=$(PYTHIA_HOME)/traces/filltime_steer_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/filltime_steer_atk_lo.champsimtrace.xz
+KNOBS=
+
+NAME=atk_mid
+TRACE=$(PYTHIA_HOME)/traces/filltime_steer_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/filltime_steer_atk_mid.champsimtrace.xz
+KNOBS=
+
+NAME=atk_hi
+TRACE=$(PYTHIA_HOME)/traces/filltime_steer_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/filltime_steer_atk_hi.champsimtrace.xz
+KNOBS=
+
