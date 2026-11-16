@@ -172,13 +172,238 @@ def map_pc_offsets(parsed, binary):
     return dict(enumerate(hot))
 
 
-if __name__ == "__main__":
-    # CLI is completed in Task 5 (evaluate_gates + table/CSV/plot).
+# --- gates ------------------------------------------------------------------
+CONTEST = [0, 1, 2]
+ANCHOR = [3, 4]
+INTENS = ["idle", "atk_lo", "atk_mid", "atk_hi"]   # rising intensity (excludes benign)
+
+RISE_MIN = 0.25          # A: contestable long-fraction rise idle->atk_hi
+MONO_TOL = 0.08          # A: tolerated dip in the non-decreasing sweep
+LONG_FLIP = 0.50         # a PC has flipped to long when long-fraction crosses this
+SHORT_TIMELY_FALL = 0.20 # B: O_short timely-fraction must fall at least this
+LONG_TIMELY_HOLD = 0.60  # B: O_long timely-fraction stays at/above this at atk_hi
+ANCHOR_DELTA_MAX = 0.15  # C: an anchor's long-fraction barely moves
+INCORRECT_MAX = 0.10     # D': contestable-offset incorrect-fraction stays ~0
+FLAT_DELTA_MAX = 0.15    # D: flat atk_hi vs flat idle, contestable long-fraction
+BENIGN_DELTA_MAX = 0.15  # F: benign vs idle, contestable long-fraction
+
+
+def _lf(runs, pcmap, neighbor, config):
+    key = (neighbor, config)
+    if key not in runs or key not in pcmap:
+        return {}
+    return per_pc_long_fraction(runs[key], pcmap[key])
+
+
+def _first_cross(seq, thr):
+    for i, v in enumerate(seq):
+        if v is not None and v >= thr:
+            return i
+    return len(seq)
+
+
+def evaluate_gates(runs, pcmap):
+    """{gate: (passed, detail)} for gates A-F + D' (spec 6). Operates on parsed runs
+    keyed by (neighbor, config) and their per-PC ip maps."""
+    g = {}
+    aw = {nb: _lf(runs, pcmap, nb, "aware") for nb in INTENS}
+
+    # A. distance steer: contestable long-fraction rises monotonically idle->atk_hi
+    okA, dA = True, []
+    for j in CONTEST:
+        seq = [aw[nb].get(j) for nb in INTENS]
+        if any(v is None for v in seq):
+            okA = False; dA.append(f"PC{j}:missing"); continue
+        mono = all(seq[i + 1] >= seq[i] - MONO_TOL for i in range(len(seq) - 1))
+        rise = seq[-1] - seq[0]
+        if not (mono and rise >= RISE_MIN):
+            okA = False
+        dA.append(f"PC{j}:{seq[0]:.2f}->{seq[-1]:.2f}{'' if mono else ' (dip)'}")
+    g["A"] = (okA, "distance steer " + ", ".join(dA))
+
+    # B. crossover: O_short timely falls while O_long timely holds (aware idle vs atk_hi)
+    okB, dB = True, []
+    for j in CONTEST:
+        s_lo = offset_timely_fraction(runs.get(("idle", "aware"), {}), OSHORT[j])
+        s_hi = offset_timely_fraction(runs.get(("atk_hi", "aware"), {}), OSHORT[j])
+        l_hi = offset_timely_fraction(runs.get(("atk_hi", "aware"), {}), OLONG[j])
+        if None in (s_lo, s_hi, l_hi):
+            okB = False; dB.append(f"PC{j}:missing"); continue
+        if not ((s_lo - s_hi) >= SHORT_TIMELY_FALL and l_hi >= LONG_TIMELY_HOLD):
+            okB = False
+        dB.append(f"PC{j}:short {s_lo:.2f}->{s_hi:.2f}, long@hi {l_hi:.2f}")
+    g["B"] = (okB, "crossover " + ", ".join(dB))
+
+    # C. selectivity: contestable cross LONG_FLIP in O_short order; anchors barely move
+    cross_idx = [_first_cross([aw[nb].get(j) for nb in INTENS], LONG_FLIP) for j in CONTEST]
+    ordered = all(cross_idx[i] <= cross_idx[i + 1] for i in range(len(cross_idx) - 1))
+    anchors_ok, dC = True, []
+    for j in ANCHOR:
+        lo, hi = aw["idle"].get(j), aw["atk_hi"].get(j)
+        if None in (lo, hi) or abs(hi - lo) > ANCHOR_DELTA_MAX:
+            anchors_ok = False
+        dC.append(f"PC{j}:{(lo if lo is not None else float('nan')):.2f}->"
+                  f"{(hi if hi is not None else float('nan')):.2f}")
+    g["C"] = (ordered and anchors_ok,
+              f"selectivity cross-order {cross_idx} ordered={ordered}; anchors " + ", ".join(dC))
+
+    # D. isolation: under flat, contestable long-fraction unmoved idle->atk_hi
+    fl_idle = _lf(runs, pcmap, "idle", "flat")
+    fl_hi = _lf(runs, pcmap, "atk_hi", "flat")
+    okD, dD = True, []
+    for j in CONTEST:
+        lo, hi = fl_idle.get(j), fl_hi.get(j)
+        if None in (lo, hi) or abs(hi - lo) > FLAT_DELTA_MAX:
+            okD = False
+        dD.append(f"PC{j}:{(lo if lo is not None else float('nan')):.2f}->"
+                  f"{(hi if hi is not None else float('nan')):.2f}")
+    g["D"] = (okD, "isolation(flat) " + ", ".join(dD))
+
+    # D'. no -8 contamination: contestable-offset incorrect-fraction ~0 at every intensity
+    okDp, worst = True, 0.0
+    for nb in INTENS:
+        r = runs.get((nb, "aware"), {})
+        for j in CONTEST:
+            for off in (OSHORT[j], OLONG[j]):
+                fr = offset_incorrect_fraction(r, off)
+                if fr is not None:
+                    worst = max(worst, fr)
+                    if fr > INCORRECT_MAX:
+                        okDp = False
+    g["D'"] = (okDp, f"max contestable incorrect-fraction {worst:.3f} (<= {INCORRECT_MAX})")
+
+    # E. bandwidth-orthogonal: is_high_bw never fires, no high-bw reward in any run
+    okE, bad = True, []
+    for key, r in runs.items():
+        if r.get("is_high_bw_fired") or r.get("reward_high_bw_total", 0) > 0:
+            okE = False; bad.append("_".join(key))
+    g["E"] = (okE, "bandwidth path off" if okE else f"HIGH-BW FIRED in {bad}")
+
+    # F. benign ~ idle: mere LLC-resident co-location does nothing
+    bn = _lf(runs, pcmap, "benign", "aware")
+    okF, dF = True, []
+    for j in CONTEST:
+        a, b = aw["idle"].get(j), bn.get(j)
+        if None in (a, b) or abs(a - b) > BENIGN_DELTA_MAX:
+            okF = False
+        dF.append(f"PC{j}:{(b if b is not None else float('nan')):.2f}")
+    g["F"] = (okF, "benign~idle " + ", ".join(dF))
+    return g
+
+
+# --- CLI --------------------------------------------------------------------
+def read_manifest(path):
+    neighbors, configs = [], []
+    with open(path) as f:
+        for line in f:
+            line = line.split("#", 1)[0].split()
+            if not line:
+                continue
+            if line[0] == "neighbor":
+                neighbors.append(line[1])
+            elif line[0] == "config":
+                configs.append(line[1])
+    return neighbors, configs
+
+
+def _fmt(x, nd=2):
+    return "n/a" if x is None else f"{x:.{nd}f}"
+
+
+def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--exp-dir")
-    ap.add_argument("--attack")
+    ap.add_argument("--exp-dir", required=True)
+    ap.add_argument("--attack", default="filltime_steer")
     ap.add_argument("--manifest")
     ap.add_argument("--csv")
     ap.add_argument("--plot")
-    ap.parse_args()
-    print("rollup.py: parsing layer ready (gates added in Task 5)", file=sys.stderr)
+    args = ap.parse_args()
+
+    if args.manifest and os.path.isfile(args.manifest):
+        neighbors, configs = read_manifest(args.manifest)
+    else:
+        neighbors, configs = INTENS + ["benign"], ["aware", "flat"]
+
+    binary = os.path.join(os.environ.get("BUILD_DIR", "build"), f"{args.attack}_victim.out")
+    runs, pcmap = {}, {}
+    for nb in neighbors:
+        for cfg in configs:
+            parsed = parse_out(os.path.join(args.exp_dir, f"{nb}_{cfg}.out"))
+            runs[(nb, cfg)] = parsed
+            pcmap[(nb, cfg)] = {} if "missing" in parsed else map_pc_offsets(parsed, binary)
+
+    print(f"=== filltime_steer rollup ({args.exp_dir}) ===\n")
+    print("per-PC long-offset fraction (aware):")
+    print("  PC  " + "  ".join(f"{nb:>8}" for nb in neighbors if (nb, "aware") in runs))
+    for j in range(N_PC):
+        role = "C" if j in CONTEST else "A"
+        cells = []
+        for nb in neighbors:
+            if (nb, "aware") not in runs:
+                continue
+            lf = per_pc_long_fraction(runs[(nb, "aware")], pcmap.get((nb, "aware"), {})).get(j)
+            cells.append(f"{_fmt(lf):>8}")
+        print(f"  {j}{role} O{OSHORT[j]}/{OLONG[j]}  " + "  ".join(cells))
+
+    g = evaluate_gates(runs, pcmap)
+    print("\ngates:")
+    npass = 0
+    for name in ("A", "B", "C", "D", "D'", "E", "F"):
+        ok, detail = g[name]
+        npass += ok
+        print(f"  [{'PASS' if ok else 'FAIL'}] {name}: {detail}")
+    print(f"\n{npass}/7 gates pass")
+
+    if args.csv:
+        with open(args.csv, "w") as f:
+            f.write("neighbor,config," + ",".join(f"pc{j}_longfrac" for j in range(N_PC)) + "\n")
+            for nb in neighbors:
+                for cfg in configs:
+                    key = (nb, cfg)
+                    if key not in runs or "missing" in runs[key]:
+                        continue
+                    lf = per_pc_long_fraction(runs[key], pcmap.get(key, {}))
+                    f.write(f"{nb},{cfg}," + ",".join(_fmt(lf.get(j)) for j in range(N_PC)) + "\n")
+        print(f"csv written to {args.csv}")
+
+    if args.plot:
+        _make_plot(runs, pcmap, neighbors, args.plot)
+
+
+def _make_plot(runs, pcmap, neighbors, path):
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except Exception as e:
+        print(f"[plot] matplotlib unavailable ({e}); skipping chart")
+        return
+    aware_nbs = [nb for nb in INTENS if (nb, "aware") in runs and "missing" not in runs[(nb, "aware")]]
+    if not aware_nbs:
+        print("[plot] no aware runs; skipping")
+        return
+    fig, ax = plt.subplots(figsize=(9, 4.8))
+    k = len(aware_nbs)
+    w = 0.8 / k
+    for s, nb in enumerate(aware_nbs):
+        lf = per_pc_long_fraction(runs[(nb, "aware")], pcmap.get((nb, "aware"), {}))
+        xs = [j + (s - (k - 1) / 2.0) * w for j in range(N_PC)]
+        ys = [lf.get(j) or 0 for j in range(N_PC)]
+        ax.bar(xs, ys, width=w, zorder=3, label=nb.replace("atk_", ""))
+    ax.axhline(LONG_FLIP, ls=":", lw=0.9, color="#333")
+    ax.set_xticks(range(N_PC))
+    ax.set_xticklabels([f"PC{j}\nO{OSHORT[j]}/{OLONG[j]}\n{'contest' if j in CONTEST else 'anchor'}"
+                        for j in range(N_PC)], fontsize=8)
+    ax.set_ylim(0, 1.0)
+    ax.set_ylabel("per-PC long-offset fraction")
+    ax.set_title("filltime_steer: rising attacker fill-latency steers contestable PCs "
+                 "short->long\n(bandwidth path OFF; anchors hold)", fontsize=9.5)
+    ax.legend(frameon=False, fontsize=8, title="intensity")
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    print(f"chart written to {path}")
+
+
+if __name__ == "__main__":
+    main()
