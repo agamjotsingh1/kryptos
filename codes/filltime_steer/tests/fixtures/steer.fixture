@@ -1,6 +1,6 @@
 Simulation complete
 scooby_st_lookup 1000
-scooby_predict_action_3 70
+scooby_predict_action_5 70
 scooby_predict_action_10 30
 scooby_predict_action_0 5
 scooby_bw_level_0 10
@@ -30,11 +30,11 @@ scooby_reward_out_of_bounds_high_bw 0
 scooby_reward_tracker_hit_low_bw 0
 scooby_reward_tracker_hit_high_bw 0
 
-scooby_reward_3 0,1,8,40,0,0,
+scooby_reward_5 0,1,8,40,0,0,
 scooby_reward_10 0,0,20,20,0,0,
 scooby_reward_0 5,0,0,0,0,0,
 
-scooby_per_pc_401136 0,70,0,0,30,0,0,0,0,0,0,0,0,0,0
+scooby_per_pc_401136 0,0,0,70,30,0,0,0,0,0,0,0,0,0,0
 Core_0_IPC 1.23
 Core_1_IPC 0.40
 scooby_st_lookup 2000

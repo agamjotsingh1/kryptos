@@ -26,10 +26,10 @@ VICTIM_C = os.path.join(ATTACK_DIR, "victim.c")
 
 # Mirror of config.h VICTIM_PC_OSHORT / VICTIM_PC_OLONG (kept in sync by hand; the
 # uniqueness test below is what guards a typo).
-OSHORT = [3, 4, 5, 22, 23]
-OLONG = [10, 11, 12, 30, 32]
-N_PC = 5
-WINDOW = 8                 # forward reuse window (accesses)
+OSHORT = [5, 4, 11, 3]
+OLONG = [10, 12, 22, 30]
+N_PC = 4
+WINDOW = 12                # forward reuse window (accesses); >= max O_long/stride (10 for PC3)
 MIN_DUAL_FRACTION = 0.15   # at least the base-trigger share demands both offsets
 
 

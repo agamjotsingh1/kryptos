@@ -31,8 +31,7 @@
 
 __attribute__((noinline)) void __champsim_start_trace(void) { asm volatile(""); }
 
-static const uint64_t OSHORT[VICTIM_N_PC] = VICTIM_PC_OSHORT;
-static const uint64_t OLONG[VICTIM_N_PC]  = VICTIM_PC_OLONG;
+static const uint64_t STRIDE[VICTIM_N_PC] = VICTIM_PC_STRIDE;
 static const int      ALU[VICTIM_N_PC]    = VICTIM_PC_ALU;
 
 /* one disjoint 1 MiB region per PC */
@@ -55,19 +54,16 @@ static uint64_t poslen[VICTIM_N_PC];
 #define RECORD(j, l) do { } while (0)
 #endif
 
-/* One function = one distinct static region-load site = one named PC j. */
+/* One function = one distinct static region-load site = one named PC j.
+ * Single-load constant-stride march: EVERY access is a trigger from which offsets
+ * {S,2S,3S,...} (incl. O_short, O_long) are future demands -> clean dual-touch. */
 #define DEFINE_PC(j)                                                          \
 __attribute__((noinline)) void ft_pc_##j(void)                                \
 {                                                                             \
-    const uint64_t os = OSHORT[j], ol = OLONG[j];                             \
-    const uint64_t period = ol + VICTIM_PERIOD_GAP;                           \
-    const uint64_t offs[3] = { 0, os, ol };                                   \
-    for (int k = 0; k < 3; k++) {                                             \
-        uint64_t line = (base[j] + offs[k]) % VICTIM_REGION_LINES_PER_PC;     \
-        sink += region[j][line * LINE_BYTES];   /* THE load of PC j */        \
-        RECORD(j, line);                                                      \
-    }                                                                         \
-    base[j] += period;                                                        \
+    uint64_t line = base[j] % VICTIM_REGION_LINES_PER_PC;                     \
+    sink += region[j][line * LINE_BYTES];       /* THE load of PC j */        \
+    RECORD(j, line);                                                          \
+    base[j] += STRIDE[j];                                                     \
     uint64_t ra = a, rb = b, rc = c;                                          \
     for (int t = 0; t < ALU[j]; t++) {                                        \
         ra = ra * 6364136223846793005ULL + 1442695040888963407ULL;           \
@@ -81,10 +77,9 @@ DEFINE_PC(0)
 DEFINE_PC(1)
 DEFINE_PC(2)
 DEFINE_PC(3)
-DEFINE_PC(4)
 
 typedef void (*pcfn)(void);
-static const pcfn PCS[VICTIM_N_PC] = { ft_pc_0, ft_pc_1, ft_pc_2, ft_pc_3, ft_pc_4 };
+static const pcfn PCS[VICTIM_N_PC] = { ft_pc_0, ft_pc_1, ft_pc_2, ft_pc_3 };
 
 int
 main(int argc, char **argv)

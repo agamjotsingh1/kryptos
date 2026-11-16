@@ -23,9 +23,9 @@ import subprocess
 import sys
 
 # --- victim definition (keep in lockstep with config.h) --------------------
-OSHORT = [3, 4, 5, 22, 23]
-OLONG = [10, 11, 12, 30, 32]
-N_PC = 5
+OSHORT = [5, 4, 11, 3]
+OLONG = [10, 12, 22, 30]
+N_PC = 4
 PC_SYMBOL = "ft_pc_{}"      # victim.c: one noinline function per PC
 
 # scooby_actions order == order scooby dumps per-PC counts in (aware.ini/flat.ini)
@@ -174,7 +174,7 @@ def map_pc_offsets(parsed, binary):
 
 # --- gates ------------------------------------------------------------------
 CONTEST = [0, 1, 2]
-ANCHOR = [3, 4]
+ANCHOR = [3]
 INTENS = ["idle", "atk_lo", "atk_mid", "atk_hi"]   # rising intensity (excludes benign)
 
 RISE_MIN = 0.25          # A: contestable long-fraction rise idle->atk_hi

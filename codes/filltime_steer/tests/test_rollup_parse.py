@@ -35,15 +35,15 @@ class TestParse(unittest.TestCase):
         self.assertEqual(self.p["reward_no_pref"], 5)
 
     def test_reward_dist_matrix(self):
-        # scooby_reward_3 = 0,1,8,40,0,0 -> none0 incorrect1 untimely8 timely40
-        d = self.p["reward_dist"][3]
+        # scooby_reward_5 = 0,1,8,40,0,0 -> none0 incorrect1 untimely8 timely40
+        d = self.p["reward_dist"][5]
         self.assertEqual((d["none"], d["incorrect"], d["untimely"], d["timely"]), (0, 1, 8, 40))
 
     def test_predict_action_and_per_pc(self):
-        self.assertEqual(self.p["predict_action"][3], 70)
+        self.assertEqual(self.p["predict_action"][5], 70)
         self.assertEqual(self.p["predict_action"][10], 30)
         pc = self.p["per_pc"][0x401136]
-        self.assertEqual(pc[3], 70)
+        self.assertEqual(pc[5], 70)
         self.assertEqual(pc[10], 30)
 
     def test_high_bw_total_zero_and_not_fired(self):
@@ -60,13 +60,13 @@ class TestMetrics(unittest.TestCase):
         self.p = rollup.parse_out(os.path.join(FIX, "steer.fixture"))
 
     def test_offset_timely_fraction(self):
-        # offset 3: timely40 / (timely40+untimely8+incorrect1) = 40/49
-        self.assertAlmostEqual(rollup.offset_timely_fraction(self.p, 3), 40 / 49)
+        # offset 5: timely40 / (timely40+untimely8+incorrect1) = 40/49
+        self.assertAlmostEqual(rollup.offset_timely_fraction(self.p, 5), 40 / 49)
         # offset 10: 20 / (20+20+0)
         self.assertAlmostEqual(rollup.offset_timely_fraction(self.p, 10), 0.5)
 
     def test_offset_incorrect_fraction(self):
-        self.assertAlmostEqual(rollup.offset_incorrect_fraction(self.p, 3), 1 / 49)
+        self.assertAlmostEqual(rollup.offset_incorrect_fraction(self.p, 5), 1 / 49)
         self.assertAlmostEqual(rollup.offset_incorrect_fraction(self.p, 10), 0.0)
 
     def test_per_pc_long_fraction(self):
