@@ -2,9 +2,10 @@
 """
 rollup.py - result analysis for the 'blend_bw' time-toggled duty-cycle steering attack.
 
-Victim (core 0) is IDENTICAL to pband_bw: six load PCs of differing predictability
-(p, signature) = [(0.30,3),(0.33,4),(0.45,5),(0.55,11),(0.75,12),(0.95,22)]. The
-neighbor (core 1) is the SAME attacker toggled at THREE duty cycles (atk_d_lo/mid/hi):
+Victim (core 0) has FIVE load PCs of differing predictability
+(p, signature) = [(0.21,3),(0.33,5),(0.45,11),(0.65,12),(0.90,22)] -- only the first TWO
+(p=0.21, p=0.33) are contestable, placed at the band extremes for max separation. The
+neighbor (core 1) is the SAME attacker toggled at FOUR duty cycles (atk_d_lo/mid/mhi/hi):
 each ON phase saturates the shared DRAM bucket, each OFF phase lets its EWMA decay, so
 the victim's scooby spends a fraction d of its SARSA updates under the high-bandwidth
 reward table. d (the "blend fraction") is read off the victim's own bw-level histogram
@@ -15,7 +16,7 @@ The bet (blend_bw_methodology): raising d makes the EV-flip break-even
 climb continuously from 0.143 (d=0) to 0.353 (d=1). Each PC flips gamble->abstain when
 p*(d) crosses its own predictability p, i.e. at d_crit(p) = (28p-4)/(8-6p). Since d_crit
 increases with p, raising the duty flips PCs ONE AT A TIME in predictability order:
-    PC0 (p=0.30, d_crit~0.71) flips before PC1 (p=0.33, d_crit~0.87);
+    PC0 (p=0.21, d_crit~0.28) flips before PC1 (p=0.33, d_crit~0.87);
     the anchors (p>=0.45) have d_crit>1 and never flip.
 Under 'blind' the reward table never swaps, so the same bw3 (same d) steers nothing --
 the isolation control.
@@ -50,8 +51,10 @@ import re
 import subprocess
 import sys
 
-# --- victim definition (keep in lockstep with config.h; identical to pband) ---
-BLEND_PCS = [(0.21, 3), (0.24, 4), (0.27, 5), (0.45, 11), (0.65, 12), (0.90, 22)]
+# --- victim definition (keep in lockstep with config.h) ---
+# TWO contestable PCs at the band extremes (0.21, 0.33) for max p-separation; the rest
+# anchors. (First attempt used three clustered at 0.21/0.24/0.27 -> flipped as a block.)
+BLEND_PCS = [(0.21, 3), (0.33, 5), (0.45, 11), (0.65, 12), (0.90, 22)]
 BLEND_PMAX = 0.40          # contestable (blend-reachable) <=> p < this (p < p*(1)=0.353)
 PC_SYMBOL = "blend_pc_{}"  # victim.c: one noinline function per PC
 

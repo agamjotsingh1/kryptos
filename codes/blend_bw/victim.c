@@ -9,25 +9,26 @@
  * 1 MiB region.
  *
  *   PC:  (p, signature)
- *    0   (0.21,  3)   contestable  (flip duty d_crit~0.28)
- *    1   (0.24,  4)   contestable  (flip duty d_crit~0.42)
- *    2   (0.27,  5)   contestable  (flip duty d_crit~0.56)
- *    3   (0.45, 11)   anchor       (above p*(d) for every reachable d -> never abstains)
- *    4   (0.65, 12)   anchor
- *    5   (0.90, 22)   anchor
+ *    0   (0.21,  3)   contestable  (flip duty d_crit~0.28 -> flips at a LOW duty)
+ *    1   (0.33,  5)   contestable  (flip duty d_crit~0.87 -> flips near the ceiling)
+ *    2   (0.45, 11)   anchor       (above p*(d) for every reachable d -> never abstains)
+ *    3   (0.65, 12)   anchor
+ *    4   (0.90, 22)   anchor
  *
- * The contestable p's sit in the clean band ~[0.21, 0.27]: low enough that the HBW reward
- * drives f0 past the 0.5 abstain line at the reachable duty (d reaches ~0.87 at SIM=50M),
- * high enough above the normal break-even (0.143) that raw contention alone does not flip
- * them -- so the blind isolation control stays flat. (p<=0.16 breaks isolation; pband's
- * p>=0.30 only reaches partial abstention under the d ceiling. See config.h for the full
- * rationale.) Full flips need the LONG run (SIM=50M); at 10M the agent under-settles.
+ * TWO contestable PCs at the EXTREMES of the clean band ~[0.21, 0.33], for maximum
+ * p-separation. The first blend_bw used THREE clustered at 0.21/0.24/0.27 and they
+ * flipped together as a block (no staircase); widening to 0.21 vs 0.33 is the fix under
+ * test. Both stay above the normal break-even (0.143) so raw contention alone does not
+ * flip them (blind isolation stays flat; p<=0.16 breaks it), and below p*(d=1)=0.353 so
+ * both remain contestable. Full flips need the LONG run (SIM=50M); at 10M the agent
+ * under-settles. See config.h for the full rationale.
  *
  * In blend_bw the attacker TOGGLES the shared bucket in time at a chosen duty cycle d.
  * The victim's Pythia learns against a time-average of the two reward tables, so the
  * EV-flip edge p*(d)=(4+8d)/(28+6d) rises with d from 0.143 to 0.353, crossing PC0
- * (p=0.21) then PC1 (p=0.24) then PC2 (p=0.27) as the attacker dials d up. The anchors
- * (p>=0.45) stay above the edge for every d and keep prefetching their signature.
+ * (p=0.21) first, then PC1 (p=0.33) only near max duty, as the attacker dials d up -- a
+ * 2-step staircase. The anchors (p>=0.45) stay above the edge for every d and keep
+ * prefetching their signature.
  *
  * ---- SIX DISTINCT, NAMED LOAD PCs ----
  * The per-PC readout requires six distinct static load sites, and rollup.py must know
@@ -98,7 +99,6 @@ DEFINE_PC(1)
 DEFINE_PC(2)
 DEFINE_PC(3)
 DEFINE_PC(4)
-DEFINE_PC(5)
 
 int
 main(int argc, char **argv)
@@ -115,7 +115,6 @@ main(int argc, char **argv)
         blend_pc_2();
         blend_pc_3();
         blend_pc_4();
-        blend_pc_5();
     }
 
     /* unreachable; defeats dead-code elimination */

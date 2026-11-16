@@ -111,13 +111,11 @@ def l1(p, q):
 
 def make_plot(runs, configs, path,
               order=("atk_idle", "atk_light", "atk_medium", "atk_heavy")):
-    """ONE clean panel: the victim abstain fraction f0 as a function of attacker
-    intensity, one line per config (aware vs blind). This is the whole story in a
-    single axes:
-      - aware  : f0 climbs idle->heavy toward the predefined target (steering),
+    """ONE clean panel: grouped bars of the victim abstain fraction f0 per
+    attacker intensity, two bars per group (BW aware vs BW blind):
+      - aware  : f0 climbs idle->heavy (steering),
       - blind  : f0 stays flat at ~0 despite the SAME bw3 saturation (isolation).
-    A dashed line marks the attacker's predefined target f0 (PI_ABSTAIN[0]); each
-    aware point is annotated with its bw3 so the "same saturation, opposite
+    Each aware bar is annotated with its bw3 so the "same saturation, opposite
     outcome" contrast is visible without a second subplot."""
     try:
         import matplotlib
@@ -131,45 +129,37 @@ def make_plot(runs, configs, path,
     x = list(range(len(order)))
     # qualitative, CVD-safe: aware (steering) vs blind (control)
     style = {
-        "aware": dict(color="#d1495b", marker="o", label="aware (reward live)"),
-        "blind": dict(color="#6c8ebf", marker="s", label="blind (reward inert)"),
+        "aware": dict(color="#d1495b", label="BW aware"),
+        "blind": dict(color="#6c8ebf", label="BW blind"),
     }
 
     fig, ax = plt.subplots(figsize=(7.5, 4.8))
 
-    # target line first so data draws on top
-    ax.axhline(PI_ABSTAIN[0], ls="--", lw=1.2, color="#666", zorder=1,
-               label=f"predefined target f0 = {PI_ABSTAIN[0]:.2f}")
+    width = 0.38
+    bar_cfgs = [c for c in configs if c in style] or configs
+    # center the group around each tick
+    offsets = [(i - (len(bar_cfgs) - 1) / 2) * width for i in range(len(bar_cfgs))]
 
-    for cfg in configs:
-        vals, xs = [], []
+    for off, cfg in zip(offsets, bar_cfgs):
+        st = style.get(cfg, dict(label=cfg))
         for xi, nb in zip(x, order):
             r = runs.get((nb, cfg), {})
-            if r and "missing" not in r:
-                xs.append(xi); vals.append(r["f0"])
-        if not vals:
-            continue
-        st = style.get(cfg, dict(label=cfg))
-        ax.plot(xs, vals, lw=2.2, markersize=7, zorder=3, **st)
-
-    # annotate each aware point with bw3 (same-saturation context, no 2nd axis)
-    for xi, nb in zip(x, order):
-        r = runs.get((nb, "aware"), {})
-        if r and "missing" not in r:
-            ax.annotate(f"bw3={r['bw3']:.2f}", (xi, r["f0"]),
-                        textcoords="offset points", xytext=(0, 9),
-                        ha="center", fontsize=8, color="#d1495b")
+            if not r or "missing" in r:
+                continue
+            bx = xi + off
+            ax.bar(bx, r["f0"], width=width, zorder=3, **st)
+            st = {k: v for k, v in st.items() if k != "label"}  # legend once
+            if cfg == "aware":
+                ax.annotate(f"d={r['bw3']:.2f}", (bx, r["f0"]),
+                            textcoords="offset points", xytext=(0, 4),
+                            ha="center", fontsize=10, color="#d1495b")
 
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
-    ax.set_xlabel("attacker intensity (DRAM footprint)")
-    ax.set_ylabel("victim abstain fraction  f0 = frac(action 0)")
-    ax.set_ylim(-0.03, 1.0)
-    ax.set_xlim(-0.2, len(order) - 0.8)
-    ax.set_title("policy_bw: victim collapses to abstain only when the reward "
-                 "signal is live\n(same bw3 saturation under 'blind' leaves it "
-                 "unmoved — isolation)", fontsize=10)
-    ax.legend(frameon=False, loc="center left")
+    ax.set_xlabel("attacker intensity")
+    ax.set_ylabel("victim abstain fraction")
+    ax.set_ylim(0, 1.0)
+    ax.legend(frameon=False, loc="upper left")
     ax.grid(axis="y", ls=":", lw=0.6, alpha=0.6)
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)

@@ -6,6 +6,10 @@ NAME=atk_d_mid
 TRACE=$(PYTHIA_HOME)/traces/blend_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/blend_bw_atk_d_mid.champsimtrace.xz
 KNOBS=
 
+NAME=atk_d_mhi
+TRACE=$(PYTHIA_HOME)/traces/blend_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/blend_bw_atk_d_mhi.champsimtrace.xz
+KNOBS=
+
 NAME=atk_d_hi
 TRACE=$(PYTHIA_HOME)/traces/blend_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/blend_bw_atk_d_hi.champsimtrace.xz
 KNOBS=
