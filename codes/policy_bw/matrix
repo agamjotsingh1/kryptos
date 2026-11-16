@@ -1,0 +1,30 @@
+# policy_bw run matrix  (read by scripts/launch.sh)
+#
+# Declares the co-location runs for the POLICY (action-distribution) attack. When
+# this file is present, launch.sh ignores its default layout and builds the matrix
+# below: one victim trace on core 0, co-located against each NEIGHBOR trace on
+# core 1, crossed with each CONFIG.
+#
+# Columns are whitespace-separated. Lines starting with '#' and blanks ignored.
+#
+#   victim   <source>                 [prog-args...]
+#   neighbor <name> <source>          [prog-args...]
+#   config   <name> <ini>
+#
+# <source> is resolved relative to this attack dir first, then codes/.
+# Trace args (idle/light/...) are passed to the workload under PIN, so one source
+# (attacker.c) yields several neighbor traces by argument alone.
+# Output .out files are named <neighbor>_<config>.out (consumed by rollup.py).
+
+victim   victim.c
+
+neighbor atk_idle      attacker.c      idle
+neighbor atk_light     attacker.c      light
+neighbor atk_medium    attacker.c      medium
+neighbor atk_heavy     attacker.c      heavy
+
+# aware = HBW reward table live (attack); blind = reward table inert (isolation).
+# Both pin the HBW degree curve EQUAL to normal, so the degree lever is off and
+# any policy movement is reward-shaping alone.
+config   aware   aware.ini
+config   blind   blind.ini

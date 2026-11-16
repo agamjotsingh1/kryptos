@@ -1,0 +1,24 @@
+
+=== Attack 'policy_bw' rollup ===
+target distribution PI_ABSTAIN = {0: 0.84, 1: 0.16}
+neighbor      cfg         bw3      f0 top_act  L1targ  degGE4     IPC
+---------------------------------------------------------------------
+atk_idle      aware     0.043   0.000       5   1.679   0.689   0.630
+atk_light     aware     0.692   0.396       5   1.193   0.688   0.500
+atk_medium    aware     0.742   0.788       0   0.420   0.689   0.415
+atk_heavy     aware     0.924   0.814       0   0.371   0.691   0.399
+atk_idle      blind     0.042   0.000       5   1.679   0.682   0.630
+atk_light     blind     0.936   0.000       5   1.998   0.717   0.457
+atk_medium    blind     0.901   0.000       5   1.998   0.717   0.324
+atk_heavy     blind     0.934   0.000       5   1.998   0.716   0.446
+
+(bw*/f0/degGE4 are FRACTIONS of their histograms; L1targ = L1 distance of the action dist to PI_ABSTAIN)
+CSV written to /home/agam/Github/kryptos/experiments/policy_bw/rollup.csv
+chart written to /home/agam/Github/kryptos/experiments/policy_bw/degree_dist.png
+
+=== Success gates ===
+[PASS] Gate 1: steering (aware) f0 idle<...<heavy = idle=0.000, light=0.396, medium=0.788, heavy=0.814  (f0_heavy>0.6, gap>0.3)
+[FAIL] Gate 2: target hit: L1(aware-heavy, PI_ABSTAIN)=0.371 (< 0.3)
+[PASS] Gate 3: isolation: bw3(heavy) aware=0.924 blind=0.934 both high; f0 aware=0.814 (collapsed) vs blind=0.000 (held)
+[PASS] Gate 4: degree held (aware): degGE4 idle=0.689 heavy=0.691, |delta|=0.002 (< 0.15)
+
