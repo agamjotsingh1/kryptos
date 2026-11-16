@@ -203,6 +203,7 @@ namespace knob
 	uint32_t scooby_print_access_debug_pc_count = 0;
 	bool     scooby_print_trace = false;
 	bool     scooby_enable_state_action_stats = false;
+	bool     scooby_enable_per_pc_stats = false;
 	bool     scooby_enable_reward_tracker_hit = false;
 	int32_t  scooby_reward_tracker_hit = -2;
 	bool     scooby_enable_shaggy = false;
@@ -986,6 +987,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
 	else if (MATCH("", "scooby_enable_state_action_stats"))
 	{
 		knob::scooby_enable_state_action_stats = !strcmp(value, "true") ? true : false;
+	}
+	else if (MATCH("", "scooby_enable_per_pc_stats"))
+	{
+		knob::scooby_enable_per_pc_stats = !strcmp(value, "true") ? true : false;
 	}
 	else if (MATCH("", "scooby_enable_reward_tracker_hit"))
 	{

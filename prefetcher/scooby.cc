@@ -56,6 +56,7 @@ namespace knob
 	extern uint32_t scooby_print_access_debug_pc_count;
 	extern bool     scooby_print_trace;
 	extern bool     scooby_enable_state_action_stats;
+	extern bool     scooby_enable_per_pc_stats;
 	extern bool     scooby_enable_reward_tracker_hit;
 	extern int32_t  scooby_reward_tracker_hit;
 	extern uint32_t scooby_state_hash_type;
@@ -459,6 +460,7 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 				}
 			}
 			stats.predict.action_dist[action_index]++;
+			if(knob::scooby_enable_per_pc_stats) update_per_pc_stats(state->pc, action_index);
 		}
 		else
 		{
@@ -483,6 +485,7 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 		/* track no prefetch */
 		track(addr, state, action_index, &ptentry);
 		stats.predict.action_dist[action_index]++;
+		if(knob::scooby_enable_per_pc_stats) update_per_pc_stats(state->pc, action_index);
 		ptentry->consensus_vec = consensus_vec;
 	}
 
@@ -884,6 +887,21 @@ void Scooby::update_stats(State *state, uint32_t action_index, uint32_t degree)
 	}
 }
 
+void Scooby::update_per_pc_stats(uint64_t pc, uint32_t action_index)
+{
+	auto it = per_pc_action_dist.find(pc);
+	if(it == per_pc_action_dist.end())
+	{
+		vector<uint64_t> act_dist(knob::scooby_max_actions, 0);
+		act_dist[action_index]++;
+		per_pc_action_dist.insert(std::pair<uint64_t, vector<uint64_t> >(pc, act_dist));
+	}
+	else
+	{
+		it->second[action_index]++;
+	}
+}
+
 int32_t Scooby::getAction(uint32_t action_index)
 {
 	assert(action_index < Actions.size());
@@ -995,6 +1013,22 @@ void Scooby::dump_stats()
 		}
 	}
 	cout << endl;
+
+	if(knob::scooby_enable_per_pc_stats)
+	{
+		/* per-trigger-PC action histogram (comma-separated in action-index order, same order
+		 * as scooby_actions); read-only instrumentation for the pband p-band attack. */
+		for(auto it = per_pc_action_dist.begin(); it != per_pc_action_dist.end(); ++it)
+		{
+			cout << "scooby_per_pc_" << hex << it->first << dec << " ";
+			for(uint32_t index = 0; index < it->second.size(); ++index)
+			{
+				cout << it->second[index] << ",";
+			}
+			cout << endl;
+		}
+		cout << endl;
+	}
 
 	for(auto it = action_deg_dist.begin(); it != action_deg_dist.end(); ++it)
 	{

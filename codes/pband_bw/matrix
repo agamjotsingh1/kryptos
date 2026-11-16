@@ -1,0 +1,25 @@
+# pband_bw run matrix  (read by scripts/launch.sh)
+#
+# Multi-PC p-band steering (ATTACK_METHODOLOGY.md 4b). One mixed-predictability
+# victim on core 0, co-located against a BINARY attacker switch (idle / heavy) on
+# core 1, crossed with the aware (reward live) and blind (reward inert) configs.
+# 2 neighbors x 2 configs = 4 runs.
+#
+#   victim   <source>                 [prog-args...]
+#   neighbor <name> <source>          [prog-args...]
+#   config   <name> <ini>
+#
+# Output .out files are named <neighbor>_<config>.out (consumed by rollup.py).
+# rollup.py also reads build/pband_bw_victim.out (via nm) to map trigger PCs to the
+# victim's pband_pc_<j> load sites.
+
+victim   victim.c
+
+# Binary switch: intermediate duties give no gradation (bucket saturates at <5% duty).
+neighbor atk_idle      attacker.c      idle
+neighbor atk_heavy     attacker.c      heavy
+
+# aware = HBW reward table live (attack); blind = reward table inert (isolation).
+# Both pin the HBW degree curve EQUAL to normal and enable the per-PC counter.
+config   aware   aware.ini
+config   blind   blind.ini

@@ -194,6 +194,19 @@ idle/light/medium/heavy by argument, crossed with `bwaware`/`bwblind` scooby
 configs; its `rollup.py` parses scooby histograms, writes `rollup.csv`, and
 reports PASS/FAIL success gates.
 
+### `pband_bw` (multi-PC p-band steering) — extra requirements
+
+`codes/pband_bw/` reads a **per-PC action counter** that stock Pythia lacks. It is
+added to scooby as pure, knob-gated instrumentation (`scooby_enable_per_pc_stats`,
+default off; `prefetcher/scooby.cc`, `inc/scooby.h`, `src/knobs.cc`) and dumped as
+`scooby_per_pc_<hex ip> c0,...,c14,` in `scooby_actions` order. The 2-core binary
+must be built **after** that change (`./build_champsim.sh multi multi no 2`).
+
+Its `rollup.py` maps each trigger IP to a victim PC by running `nm` on
+`build/pband_bw_victim.out` (each PC is a `noinline` function `pband_pc_<j>`; the
+binary is static and non-PIE, so traced IPs are link-time addresses). Keep that
+binary next to the trace, or the rollup falls back to the 6 hottest IPs in address order.
+
 ## Just generate a trace (no simulation)
 
 ```bash

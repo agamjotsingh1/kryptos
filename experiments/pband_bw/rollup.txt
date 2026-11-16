@@ -1,0 +1,69 @@
+
+=== Attack 'pband_bw' rollup ===
+victim PCs (p, signature): PC0(0.3,3), PC1(0.33,4), PC2(0.45,5), PC3(0.55,11), PC4(0.75,12), PC5(0.95,22)
+PBAND_TARGET = ['abstain', 'abstain', 'gamble', 'gamble', 'gamble', 'gamble']   (contestable: p < 0.4)
+PC mapping: nm  (victim binary: /home/agam/Github/kryptos/build/pband_bw_victim.out)
+
+--- run summary (victim = core 0) ---
+neighbor   cfg        bw3  degGE4   aggF0     IPC
+-------------------------------------------------
+atk_idle   aware    0.000   0.178   0.001   0.428
+atk_heavy  aware    0.875   0.117   0.268   0.277
+atk_idle   blind    0.000   0.178   0.001   0.428
+atk_heavy  blind    0.867   0.179   0.001   0.291
+(aggF0 = aggregate scooby_predict_action_0 fraction -- washed out by the +1 fallback; per-PC tables below are the real readout)
+
+--- per-PC abstain f0 = frac(action 0) ---
+regime                 p.30   p.33   p.45   p.55   p.75   p.95
+--------------------------------------------------------------
+aware idle             0.00   0.00   0.00   0.00   0.00   0.00
+aware heavy            0.68   0.74   0.00   0.00   0.00   0.00
+blind idle             0.00   0.00   0.00   0.00   0.00   0.00
+blind heavy            0.00   0.00   0.00   0.00   0.00   0.00
+
+--- per-PC signature-gamble fraction = frac(action == signature) ---
+regime                 p.30   p.33   p.45   p.55   p.75   p.95
+--------------------------------------------------------------
+aware idle             0.95   0.99   1.00   1.00   1.00   1.00
+aware heavy            0.19   0.20   0.99   1.00   1.00   0.99
+blind idle             0.95   0.99   1.00   1.00   1.00   1.00
+blind heavy            0.95   0.99   1.00   1.00   1.00   1.00
+
+--- per-PC top action ---
+regime                 p.30   p.33   p.45   p.55   p.75   p.95
+--------------------------------------------------------------
+aware idle                3      4      5     11     12     22
+aware heavy               0      0      5     11     12     22
+blind idle                3      4      5     11     12     22
+blind heavy               3      4      5     11     12     22
+
+--- per-PC verdict (f0 > 0.5 => abstain) ---
+regime                 p.30   p.33   p.45   p.55   p.75   p.95
+--------------------------------------------------------------
+aware idle             gmbl   gmbl   gmbl   gmbl   gmbl   gmbl
+aware heavy            ABST   ABST   gmbl   gmbl   gmbl   gmbl
+blind idle             gmbl   gmbl   gmbl   gmbl   gmbl   gmbl
+blind heavy            gmbl   gmbl   gmbl   gmbl   gmbl   gmbl
+
+--- trigger IP per PC (per run) ---
+aware atk_heavy     PC0=0x40309a PC1=0x4031ca PC2=0x4032fa PC3=0x40342a PC4=0x40355a PC5=0x40368a
+blind atk_heavy     PC0=0x40309a PC1=0x4031ca PC2=0x4032fa PC3=0x40342a PC4=0x40355a PC5=0x40368a
+aware atk_idle      PC0=0x40309a PC1=0x4031ca PC2=0x4032fa PC3=0x40342a PC4=0x40355a PC5=0x40368a
+blind atk_idle      PC0=0x40309a PC1=0x4031ca PC2=0x4032fa PC3=0x40342a PC4=0x40355a PC5=0x40368a
+
+CSV written to /home/agam/Github/kryptos/experiments/pband_bw/rollup.csv
+chart written to /home/agam/Github/kryptos/experiments/pband_bw/degree_dist.png
+
+=== Success gates ===
+[PASS] Gate 1: differentiated steering (contestable gamble->abstain, predictable keeps signature)
+         p0.3:C f0 0.00->0.68 ok
+         p0.33:C f0 0.00->0.74 ok
+         p0.45:P f0=0.00 sig=0.99 ok
+         p0.55:P f0=0.00 sig=1.00 ok
+         p0.75:P f0=0.00 sig=1.00 ok
+         p0.95:P f0=0.00 sig=0.99 ok
+[PASS] Gate 2: staircase step: min(contestable f0)=0.68 - max(predictable f0)=0.00 = 0.68 (> 0.4)
+[PASS] Gate 3: joint-target hit: ['abstain', 'abstain', 'gamble', 'gamble', 'gamble', 'gamble'] == ['abstain', 'abstain', 'gamble', 'gamble', 'gamble', 'gamble']
+[PASS] Gate 4: isolation: bw3(heavy) aware=0.87 blind=0.87 (> 0.6); blind-heavy f0 = [0.00, 0.00, 0.00, 0.00, 0.00, 0.00] (contestable < 0.2)
+[PASS] Gate 5: degree held: deg>=4 (among gambling) idle=0.18 heavy=0.12, |delta|=0.06 (< 0.15)
+
