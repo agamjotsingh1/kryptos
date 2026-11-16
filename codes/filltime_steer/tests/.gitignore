@@ -1,2 +1,3 @@
-*.out
+*_selftest.out
+victim_nm.out
 __pycache__/

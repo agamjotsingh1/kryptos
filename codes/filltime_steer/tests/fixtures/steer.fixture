@@ -1,0 +1,45 @@
+Simulation complete
+scooby_st_lookup 1000
+scooby_predict_action_3 70
+scooby_predict_action_10 30
+scooby_predict_action_0 5
+scooby_bw_level_0 10
+scooby_bw_level_1 3
+scooby_bw_level_2 1
+scooby_bw_level_3 2
+scooby_selected_deg_1 40
+scooby_selected_deg_2 10
+scooby_selected_deg_4 10
+scooby_reward_no_pref 5
+scooby_reward_incorrect 2
+scooby_reward_correct_untimely 28
+scooby_reward_correct_timely 80
+scooby_reward_out_of_bounds 0
+scooby_reward_tracker_hit 0
+
+scooby_reward_none_low_bw 5
+scooby_reward_none_high_bw 0
+scooby_reward_incorrect_low_bw 2
+scooby_reward_incorrect_high_bw 0
+scooby_reward_correct_untimely_low_bw 28
+scooby_reward_correct_untimely_high_bw 0
+scooby_reward_correct_timely_low_bw 80
+scooby_reward_correct_timely_high_bw 0
+scooby_reward_out_of_bounds_low_bw 0
+scooby_reward_out_of_bounds_high_bw 0
+scooby_reward_tracker_hit_low_bw 0
+scooby_reward_tracker_hit_high_bw 0
+
+scooby_reward_3 0,1,8,40,0,0,
+scooby_reward_10 0,0,20,20,0,0,
+scooby_reward_0 5,0,0,0,0,0,
+
+scooby_per_pc_401136 0,70,0,0,30,0,0,0,0,0,0,0,0,0,0
+Core_0_IPC 1.23
+Core_1_IPC 0.40
+scooby_st_lookup 2000
+scooby_reward_no_pref 999
+scooby_reward_incorrect 999
+scooby_reward_correct_untimely 999
+scooby_reward_correct_timely 999
+scooby_per_pc_501200 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
