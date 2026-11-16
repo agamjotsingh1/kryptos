@@ -1,0 +1,144 @@
+NAME=vp050_atk_idle
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp050.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_idle.champsimtrace.xz
+KNOBS=
+
+NAME=vp050_atk_light
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp050.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_light.champsimtrace.xz
+KNOBS=
+
+NAME=vp050_atk_medium
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp050.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_medium.champsimtrace.xz
+KNOBS=
+
+NAME=vp050_atk_heavy
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp050.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_heavy.champsimtrace.xz
+KNOBS=
+
+NAME=vp100_atk_idle
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp100.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_idle.champsimtrace.xz
+KNOBS=
+
+NAME=vp100_atk_light
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp100.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_light.champsimtrace.xz
+KNOBS=
+
+NAME=vp100_atk_medium
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp100.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_medium.champsimtrace.xz
+KNOBS=
+
+NAME=vp100_atk_heavy
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp100.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_heavy.champsimtrace.xz
+KNOBS=
+
+NAME=vp160_atk_idle
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp160.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_idle.champsimtrace.xz
+KNOBS=
+
+NAME=vp160_atk_light
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp160.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_light.champsimtrace.xz
+KNOBS=
+
+NAME=vp160_atk_medium
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp160.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_medium.champsimtrace.xz
+KNOBS=
+
+NAME=vp160_atk_heavy
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp160.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_heavy.champsimtrace.xz
+KNOBS=
+
+NAME=vp200_atk_idle
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp200.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_idle.champsimtrace.xz
+KNOBS=
+
+NAME=vp200_atk_light
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp200.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_light.champsimtrace.xz
+KNOBS=
+
+NAME=vp200_atk_medium
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp200.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_medium.champsimtrace.xz
+KNOBS=
+
+NAME=vp200_atk_heavy
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp200.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_heavy.champsimtrace.xz
+KNOBS=
+
+NAME=vp250_atk_idle
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp250.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_idle.champsimtrace.xz
+KNOBS=
+
+NAME=vp250_atk_light
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp250.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_light.champsimtrace.xz
+KNOBS=
+
+NAME=vp250_atk_medium
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp250.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_medium.champsimtrace.xz
+KNOBS=
+
+NAME=vp250_atk_heavy
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp250.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_heavy.champsimtrace.xz
+KNOBS=
+
+NAME=vp300_atk_idle
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp300.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_idle.champsimtrace.xz
+KNOBS=
+
+NAME=vp300_atk_light
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp300.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_light.champsimtrace.xz
+KNOBS=
+
+NAME=vp300_atk_medium
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp300.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_medium.champsimtrace.xz
+KNOBS=
+
+NAME=vp300_atk_heavy
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp300.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_heavy.champsimtrace.xz
+KNOBS=
+
+NAME=vp340_atk_idle
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp340.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_idle.champsimtrace.xz
+KNOBS=
+
+NAME=vp340_atk_light
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp340.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_light.champsimtrace.xz
+KNOBS=
+
+NAME=vp340_atk_medium
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp340.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_medium.champsimtrace.xz
+KNOBS=
+
+NAME=vp340_atk_heavy
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp340.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_heavy.champsimtrace.xz
+KNOBS=
+
+NAME=vp450_atk_idle
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp450.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_idle.champsimtrace.xz
+KNOBS=
+
+NAME=vp450_atk_light
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp450.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_light.champsimtrace.xz
+KNOBS=
+
+NAME=vp450_atk_medium
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp450.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_medium.champsimtrace.xz
+KNOBS=
+
+NAME=vp450_atk_heavy
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp450.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_heavy.champsimtrace.xz
+KNOBS=
+
+NAME=vp800_atk_idle
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp800.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_idle.champsimtrace.xz
+KNOBS=
+
+NAME=vp800_atk_light
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp800.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_light.champsimtrace.xz
+KNOBS=
+
+NAME=vp800_atk_medium
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp800.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_medium.champsimtrace.xz
+KNOBS=
+
+NAME=vp800_atk_heavy
+TRACE=$(PYTHIA_HOME)/traces/policy_psweep_vp800.champsimtrace.xz $(PYTHIA_HOME)/traces/policy_psweep_atk_heavy.champsimtrace.xz
+KNOBS=
+

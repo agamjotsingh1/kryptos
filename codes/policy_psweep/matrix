@@ -1,0 +1,37 @@
+# policy_psweep run matrix  (read by scripts/launch.sh)
+#
+# Sweeps the victim predictability p (prob its best action is correct) across and
+# around the reward EV-flip band (0.143, 0.353). MULTIPLE victim lines: each is
+# crossed with every neighbor and config. Output .out files are named
+# <victim>_<neighbor>_<config>.out (consumed by rollup.py).
+#
+#   victim   <name> <source> [prog-args...]
+#   neighbor <name> <source> [prog-args...]
+#   config   <name> <ini>
+#
+# The victim prog-arg is p in PER-MILLE (p*1000); the name encodes it (vp250 =>
+# p=0.250). 5 values inside the band, 4 outside (2 below 0.143, 2 above 0.353).
+
+# --- below the band (p < 0.143): abstain-leaning even without the attack ---
+victim vp010  victim.c  10
+victim vp030  victim.c  30
+victim vp050  victim.c  50
+victim vp100  victim.c  100
+# --- inside the EV-flip band (0.143 < p < 0.353): CONTESTABLE ---
+victim vp160  victim.c  160
+victim vp200  victim.c  200
+victim vp250  victim.c  250
+victim vp300  victim.c  300
+victim vp340  victim.c  340
+# --- above the band (p > 0.353): gamble wins even under HBW reward (resists) ---
+victim vp450  victim.c  450
+victim vp800  victim.c  800
+
+# attacker intensities -> the bw3 levels on the y-axis grouping
+neighbor atk_idle    attacker.c  idle
+neighbor atk_light   attacker.c  light
+neighbor atk_medium  attacker.c  medium
+neighbor atk_heavy   attacker.c  heavy
+
+# reward table LIVE (the attack). Degree pinned equal => action-selection only.
+config   aware   aware.ini
