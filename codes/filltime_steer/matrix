@@ -1,0 +1,23 @@
+# filltime_steer experiment matrix (launch.sh manifest mode).
+# One victim x {neighbors} x {configs}. Single-victim path -> one tlist block per
+# neighbor, named <neighbor>; runs land in experiments/filltime_steer/<neighbor>_<cfg>.out.
+#
+# Neighbors (attacker argv: <region_log2> <alu_pad>):
+#   idle    quiet baseline (shared _common/idle.c)
+#   benign  LLC-resident streaming (256 KiB) -> DRAM-quiet co-location control (~idle)
+#   atk_lo/mid/hi  64 MiB streaming at falling alu_pad -> rising DRAM request rate
+#                  -> rising shared-queue latency (the intensity dial).
+# The alu_pad ladder (24/6/0) is PROVISIONAL; Task 6 calibration measures fill-latency
+# vs intensity and sets the final ladder (or swaps to a time-toggled attacker if the
+# steady dial saturates near-binary).
+
+victim   victim.c
+
+neighbor idle    _common/idle.c
+neighbor benign  attacker.c  18 64
+neighbor atk_lo  attacker.c  26 24
+neighbor atk_mid attacker.c  26 6
+neighbor atk_hi  attacker.c  26 0
+
+config   aware   aware.ini
+config   flat    flat.ini
