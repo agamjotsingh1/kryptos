@@ -61,7 +61,7 @@
  * Contestable PCs: low ALU (short T_line -> O_short flips to untimely under contention).
  * Anchor PC3: HIGH ALU (long T_line -> O_short stays timely at every intensity). Tuned
  * in Task 7. */
-#define VICTIM_PC_ALU { 2, 2, 2, 40 }
+#define VICTIM_PC_ALU { 14, 14, 14, 60 }
 
 /* Selftest only: periods per PC to emit for the dual-touch invariant check. */
 #define FT_SELFTEST_ITERS 300
