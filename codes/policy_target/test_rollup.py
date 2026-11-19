@@ -48,6 +48,56 @@ def test_fit_invert_monotone_interpolation():
     assert got[0.25] < got[0.50] < got[0.75]                           # order preserved
 
 
+def test_build_target_dist_is_full_width_clean():
+    from rollup import build_target_dist
+    assert build_target_dist(0.5, 4) == {0: 0.5, 4: 0.5}
+
+
+def test_l1_full_is_not_degenerate_under_noise_leak():
+    from rollup import build_target_dist, l1_full
+    # realized abstains 0.50 (== f0*), but the gamble mass leaks into noise buckets 7,8
+    agg = {0: 50, 4: 30, 7: 12, 8: 8}
+    tgt = build_target_dist(0.50, signature=4)          # {0:0.5, 4:0.5}
+    l1 = l1_full(agg, tgt)
+    assert l1 > 2 * abs(0.50 - 0.50) + 1e-6             # strictly exceeds the 2-bucket collapse
+    assert abs(l1 - (abs(0.5 - 0.5) + abs(0.30 - 0.5) + 0.12 + 0.08)) < 1e-9
+
+
+def test_setpoint_gate_uses_cross_seed_mean():
+    from rollup import setpoint_gate
+    passed, _detail = setpoint_gate({0.50: [0.47, 0.52, 0.55]}, tol=0.10)[0.50]
+    assert passed                                       # mean 0.513 within 0.10
+
+
+def test_anchor_gate_checks_verification_duties_only():
+    from rollup import anchor_gate
+    assert anchor_gate({"on40": 0.05, "on64": 0.08}, thresh=0.5) is True
+    assert anchor_gate({"on40": 0.05, "on64": 0.60}, thresh=0.5) is False
+
+
+def test_isolation_gate_flat_under_blind():
+    from rollup import isolation_gate
+    assert isolation_gate(blind_f0_by_duty={"on40": 0.03, "on64": 0.06}, thresh=0.15) is True
+
+
+def test_fit_invert_clamps_out_of_range_target():
+    from rollup import fit_invert
+    r = fit_invert([(8, 0.12), (72, 0.84)], [0.99])
+    assert 0.99 in r.clamped and isinstance(r[0.99], int)
+
+
+def test_monotone_gate_detects_decrease():
+    from rollup import monotone_gate
+    assert monotone_gate([0.1, 0.3, 0.5, 0.7], tol=0.08) is True
+    assert monotone_gate([0.1, 0.5, 0.3, 0.7], tol=0.08) is False
+
+
+def test_degree_gate_spread():
+    from rollup import degree_gate
+    assert degree_gate([0.68, 0.69, 0.70], tol=0.05) is True
+    assert degree_gate([0.68, 0.50, 0.90], tol=0.05) is False
+
+
 # --- minimal runner (stands in for pytest) ---------------------------------
 def _run():
     import tempfile

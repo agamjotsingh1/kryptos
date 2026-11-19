@@ -178,6 +178,65 @@ def fit_invert(cal_points, targets):
     return r
 
 
+# ---------------------------------------------------------------------------
+# gates (spec 2026-11-19-policy-target-design.md section 6)
+# ---------------------------------------------------------------------------
+def build_target_dist(f0star, signature):
+    """The CLEAN named target a setpoint f0* implies: abstain (action 0) with weight
+    f0*, the signature action with weight 1-f0*, everything else 0. Deliberately
+    full-width-but-sparse so l1_full against it penalizes any realized mass that leaks
+    into noise / off-by-one buckets -- that leak is exactly what a 2-bucket collapse
+    would hide (spec gate 3 anti-degeneracy)."""
+    return {0: f0star, signature: 1.0 - f0star}
+
+
+def l1_full(agg_counts, target):
+    """L1 distance over the UNION of action buckets, both normalized to sum 1. agg_counts
+    is the full aggregate action histogram (action -> count); target is a weight dict."""
+    tot = sum(agg_counts.values())
+    norm = {a: c / tot for a, c in agg_counts.items()} if tot else {}
+    keys = set(norm) | set(target)
+    return sum(abs(norm.get(a, 0.0) - target.get(a, 0.0)) for a in keys)
+
+
+def setpoint_gate(realized_by_target, tol):
+    """realized_by_target: {target_f0: [f0 per seed]}. Returns {target: (passed, detail)}
+    using the CROSS-SEED MEAN (spec gate 2), tolerance tol (or ~2 sigma, set by caller)."""
+    out = {}
+    for tgt, seeds in realized_by_target.items():
+        n = len(seeds)
+        mean = sum(seeds) / n if n else float("nan")
+        var = sum((x - mean) ** 2 for x in seeds) / n if n else 0.0
+        sd = var ** 0.5
+        passed = (n > 0) and abs(mean - tgt) <= tol
+        out[tgt] = (passed, f"mean={mean:.3f} sd={sd:.3f} |mean-tgt|={abs(mean - tgt):.3f} "
+                            f"tol={tol:.3f} n={n}")
+    return out
+
+
+def anchor_gate(f0_by_duty, thresh):
+    """True iff the anchor PC stays below `thresh` at EVERY verification duty (spec gate 4
+    -- checked at the actual verification duties, not nominal ones)."""
+    vals = list(f0_by_duty.values())
+    return bool(vals) and all(v < thresh for v in vals)
+
+
+def isolation_gate(blind_f0_by_duty, thresh):
+    """True iff the contestable PC never abstains under blind at any duty (spec gate 5)."""
+    vals = list(blind_f0_by_duty.values())
+    return bool(vals) and all(v < thresh for v in vals)
+
+
+def monotone_gate(seq, tol):
+    """True iff `seq` is non-decreasing allowing a dip of at most `tol` (spec gate 1)."""
+    return all(seq[i + 1] >= seq[i] - tol for i in range(len(seq) - 1))
+
+
+def degree_gate(vals, tol):
+    """True iff deg>=4 spread across duties is below `tol` (spec gate 6: degree held)."""
+    return bool(vals) and (max(vals) - min(vals) < tol)
+
+
 def pc_symbols(binary):
     """{j: (start, end)} for blend_pc_<j> from `nm -n`, or None if unavailable."""
     if not binary or not os.path.isfile(binary):
@@ -240,17 +299,21 @@ def verdict(dist):
 
 
 def read_manifest(path):
-    neighbors, configs = [], []
+    """Return (victims, neighbors, configs). victims is the list of multi-victim seed
+    names (empty for the single-victim calibration form)."""
+    victims, neighbors, configs = [], [], []
     with open(path) as f:
         for line in f:
             line = line.split("#", 1)[0].split()
             if not line:
                 continue
-            if line[0] == "neighbor":
+            if line[0] == "victim" and len(line) >= 3:     # multi-victim: victim <name> <src> ...
+                victims.append(line[1])
+            elif line[0] == "neighbor":
                 neighbors.append(line[1])
             elif line[0] == "config":
                 configs.append(line[1])
-    return neighbors, configs
+    return victims, neighbors, configs
 
 
 def fmt(x, nd=2):
@@ -274,424 +337,245 @@ def _mpl():
         return None
 
 
-def make_plot(runs, pcmap, aware_ordered, path):
-    """THE requested chart: ONE LINE PER DUTY CYCLE (aware), ordered by measured bw3 (=
-    the blend fraction d), over the victim PCs sorted by predictability p. As the duty
-    rises the whole abstain curve lifts -- the three duty lines separate vertically and
-    the abstain cutoff sweeps right up the p-axis while the anchors stay flat near 0."""
-    plt = _mpl()
-    if plt is None:
-        return
-    n = len(BLEND_PCS)
-    k = len(aware_ordered)
-    if k == 0:
-        print("[plot] no aware runs; skipping main chart")
-        return
-    xs = list(range(n))
-    fig, ax = plt.subplots(figsize=(9.2, 5.2))
-
-    for s, key in enumerate(aware_ordered):
-        r = runs[key]
-        color = DUTY_COLORS[min(s, len(DUTY_COLORS) - 1)] if k <= len(DUTY_COLORS) \
-            else plt.cm.YlOrRd((s + 1) / (k + 1))
-        xp, yp = [], []
-        for j in range(n):
-            ip = pcmap.get(key, {}).get(j)
-            f0 = pc_f0(r["per_pc"].get(ip, {})) if ip is not None else None
-            if f0 is not None:
-                xp.append(j)
-                yp.append(f0)
-        ax.plot(xp, yp, marker="o", ms=6, lw=2.2, color=color, zorder=3,
-                label=f"{key[0].replace('atk_', '')}:  d≈{r['bw3']:.2f}")
-
-    ax.axhline(F0_ABSTAIN, ls=":", lw=0.9, color="#333", zorder=2)
-    ax.text(n - 1, F0_ABSTAIN + 0.012, "abstain", fontsize=8, color="#333",
-            ha="right", va="bottom")
-
-    # per-duty PREDICTED cutoff: p*(bw3) in that duty's colour. PCs left of the line are
-    # predicted to abstain at that duty (p < p*). A correct staircase => each line's
-    # observed crossing lands at its own coloured cutoff.
-    for s, key in enumerate(aware_ordered):
-        color = DUTY_COLORS[min(s, len(DUTY_COLORS) - 1)] if k <= len(DUTY_COLORS) \
-            else plt.cm.YlOrRd((s + 1) / (k + 1))
-        ps = pstar(runs[key]["bw3"])
-        n_pred = sum(1 for p, _ in BLEND_PCS if p < ps)
-        if 0 < n_pred <= n:
-            ax.axvline(n_pred - 0.5, ls="--", lw=1.1, color=color, alpha=0.8, zorder=1)
-
-    ax.set_xticks(xs)
-    ax.set_xticklabels([f"PC{j}\np={p:.2f}\nsig={s}" for j, (p, s) in enumerate(BLEND_PCS)],
-                       fontsize=8)
-    ax.set_xlabel("victim PC  (increasing predictability p →)")
-    ax.set_ylim(0, 1.0)
-    ax.set_ylabel("per-PC abstain fraction  f0 = frac(action 0)")
-    ax.set_title("blend_bw: raising the attacker's DUTY CYCLE steps the abstain cutoff up "
-                 "the p-axis\n(dashed line per duty = predicted cutoff p*(d); each higher "
-                 "duty should flip ~2 more PCs)", fontsize=9.5)
-    ax.legend(frameon=False, fontsize=9, loc="upper right", title="duty (aware)")
-    ax.grid(axis="y", ls=":", lw=0.6, alpha=0.6)
-    for sp in ("top", "right"):
-        ax.spines[sp].set_visible(False)
-    fig.tight_layout()
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-    print(f"chart written to {path}")
-
-
-def make_isolation_plot(runs, pcmap, aware_key, blind_key, path):
-    """Companion: aware vs blind at the HIGHEST duty. Same bw3, yet only aware abstains."""
-    plt = _mpl()
-    if plt is None:
-        return
-    if aware_key is None or blind_key is None:
-        return
-    if "missing" in runs.get(aware_key, {"missing": 1}) or \
-       "missing" in runs.get(blind_key, {"missing": 1}):
-        return
-    n = len(BLEND_PCS)
-    w = 0.38
-    fig, ax = plt.subplots(figsize=(8, 4.4))
-    for s, (key, color) in enumerate(((aware_key, "#a50026"), (blind_key, "#6c8ebf"))):
-        r = runs[key]
-        xs, ys = [], []
-        for j in range(n):
-            ip = pcmap.get(key, {}).get(j)
-            f0 = pc_f0(r["per_pc"].get(ip, {})) if ip is not None else None
-            if f0 is not None:
-                xs.append(j + (s - 0.5) * w)
-                ys.append(f0)
-        lab = f"{key[1]} {key[0].replace('atk_', '')}  (d≈{r['bw3']:.2f})"
-        ax.bar(xs, ys, width=w, color=color, zorder=3, label=lab)
-    ax.axhline(F0_ABSTAIN, ls=":", lw=0.9, color="#333", zorder=2)
-    ax.set_xticks(range(n))
-    ax.set_xticklabels([f"PC{j}\np={p:.2f}" for j, (p, _s) in enumerate(BLEND_PCS)], fontsize=8)
-    ax.set_ylim(0, 1.0)
-    ax.set_ylabel("per-PC abstain fraction  f0")
-    ax.set_title("blend_bw isolation: same measured d, reward-blind victim never abstains",
-                 fontsize=10)
-    ax.legend(frameon=False, fontsize=8, loc="upper right")
-    ax.grid(axis="y", ls=":", lw=0.6, alpha=0.6)
-    for sp in ("top", "right"):
-        ax.spines[sp].set_visible(False)
-    fig.tight_layout()
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-    print(f"isolation chart written to {path}")
 
 
 # ---------------------------------------------------------------------------
+# policy_target controller + gates driver
+# ---------------------------------------------------------------------------
+PERIOD = 80                      # fixed toggle period (on + off); duty is the 1-D dial
+SETPOINTS = [0.25, 0.50, 0.75]   # the named abstain-fraction targets
+CONTESTABLE_J = 0                # PC0 = contestable target
+ANCHOR_J = 1                     # PC1 = anchor
+
+# gate thresholds (final values set from the spike / Task 5; printed always)
+SETPOINT_TOL = 0.10              # |mean(f0) - f0*| must be <= this (gate 2)
+L1_MAX = 0.30                    # full-histogram L1 at the mid setpoint (gate 3)
+ANCHOR_F0_MAX = 0.50             # anchor must stay below this at every duty (gate 4)
+ISO_F0_MAX = 0.15                # blind contestable f0 must stay below this (gate 5)
+DEG_TOL = 0.05                   # deg>=4 spread across duties (gate 6)
+
+
+def _on_from_name(nb):
+    m = re.search(r"on(\d+)", nb)
+    return int(m.group(1)) if m else None
+
+
+def _target_from_name(nb):
+    m = re.search(r"ver_f(\d+)", nb)
+    return int(m.group(1)) / 100.0 if m else None
+
+
+def make_plot(cal_pts, inv, path):
+    """f0 vs attacker on_lines (the calibrated ramp) with the three setpoints marked."""
+    plt = _mpl()
+    if not plt or not cal_pts:
+        return
+    xs = [on for on, _ in sorted(cal_pts)]
+    ys = [f0 for _, f0 in sorted(cal_pts)]
+    fig, ax = plt.subplots(figsize=(8, 4.6))
+    ax.plot(xs, ys, "-o", color="#1f77b4", label="calibrated f0(on_lines)")
+    for tgt in sorted(inv):
+        on = inv[tgt]
+        ax.axhline(tgt, color="#999", lw=0.7, ls=":")
+        ax.scatter([on], [tgt], color="#a50026", zorder=5)
+        ax.annotate(f"f0*={tgt:g}\non={on}", (on, tgt), textcoords="offset points",
+                    xytext=(6, -4), fontsize=8)
+    ax.set_xlabel("attacker on_lines (period %d)" % PERIOD)
+    ax.set_ylabel("contestable PC0 abstain fraction f0")
+    ax.set_title("policy_target: setpoint controller (f0 vs duty)")
+    ax.set_ylim(-0.02, 1.02)
+    ax.legend(loc="lower right", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+    print(f"plot written to {path}")
+
+
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser()
     ap.add_argument("--exp-dir", required=True)
-    ap.add_argument("--attack", default="blend_bw")
-    ap.add_argument("--manifest", help="codes/<attack>/matrix (neighbors+configs)")
-    ap.add_argument("--neighbors", help="comma list (overrides manifest)")
-    ap.add_argument("--configs", help="comma list (overrides manifest)")
-    ap.add_argument("--victim-bin",
-                    help="victim binary for nm PC mapping "
-                         "(default: $BUILD_DIR or <repo>/build, <attack>_victim.out)")
+    ap.add_argument("--attack", default="policy_target")
+    ap.add_argument("--manifest", help="codes/<attack>/matrix")
+    ap.add_argument("--victim-bin", help="victim binary for nm PC mapping")
     ap.add_argument("--csv", help="also write the CSV here")
-    ap.add_argument("--plot", help="write the per-PC duty-sweep PNG here "
-                                   "(an _isolation.png companion is written alongside)")
+    ap.add_argument("--plot", help="write the f0-vs-duty PNG here")
+    ap.add_argument("--emit-matrix", action="store_true",
+                    help="print verification neighbor+seed lines for the computed duties")
+    ap.add_argument("--tol", type=float, default=SETPOINT_TOL,
+                    help="setpoint tolerance (default %.2f; widen to ~2 sigma per the spike)"
+                         % SETPOINT_TOL)
     args = ap.parse_args()
 
-    if args.neighbors and args.configs:
-        neighbors = [s.strip() for s in args.neighbors.split(",") if s.strip()]
-        configs = [s.strip() for s in args.configs.split(",") if s.strip()]
-    elif args.manifest:
-        neighbors, configs = read_manifest(args.manifest)
-    else:
-        sys.exit("need --manifest or --neighbors/--configs")
+    if not args.manifest:
+        sys.exit("need --manifest")
+    victims, neighbors, configs = read_manifest(args.manifest)
 
     build_dir = os.environ.get("BUILD_DIR") or os.path.join(here, "..", "..", "build")
     victim_bin = args.victim_bin or os.path.join(build_dir, f"{args.attack}_victim.out")
     ranges = pc_symbols(victim_bin)
 
-    runs, pcmap, how = {}, {}, set()
-    for cfg in configs:
-        for nb in neighbors:
-            r = parse_run(os.path.join(args.exp_dir, f"{nb}_{cfg}.out"))
-            runs[(nb, cfg)] = r
-            if "missing" not in r:
-                pcmap[(nb, cfg)], h = map_pcs(r["per_pc"], ranges)
-                how.add(h)
+    def seed_files(nb, cfg):
+        if victims:
+            return [os.path.join(args.exp_dir, f"{v}_{nb}_{cfg}.out") for v in victims]
+        return [os.path.join(args.exp_dir, f"{nb}_{cfg}.out")]
 
-    def dist(key, j):
-        r = runs.get(key, {})
-        if not r or "missing" in r:
-            return None
-        ip = pcmap[key].get(j)
-        return None if ip is None else r["per_pc"].get(ip, {})
+    def parsed(nb, cfg):
+        return [r for r in (parse_run(p) for p in seed_files(nb, cfg)) if "missing" not in r]
 
-    def f0(key, j):
-        d = dist(key, j)
-        return pc_f0(d) if d else None
+    def pcf0(r, j):
+        pcmap, _ = map_pcs(r["per_pc"], ranges)
+        ip = pcmap.get(j)
+        return pc_f0(r["per_pc"].get(ip, {})) if ip is not None else None
 
-    # Order the aware duties by MEASURED bw3 (the real blend fraction d), low -> high.
-    aware_ordered = sorted(
-        [(nb, AWARE) for nb in neighbors if "missing" not in runs[(nb, AWARE)]],
-        key=lambda k: runs[k]["bw3"]) if AWARE in configs else []
+    def mean(xs):
+        xs = [x for x in xs if x is not None]
+        return (sum(xs) / len(xs)) if xs else None
 
-    cont = [j for j, (p, _s) in enumerate(BLEND_PCS) if p < BLEND_PMAX]
-    pred = [j for j, (p, _s) in enumerate(BLEND_PCS) if p >= BLEND_PMAX]
+    cal_nbs = sorted([nb for nb in neighbors if _on_from_name(nb) is not None and
+                      _target_from_name(nb) is None], key=_on_from_name)
+    ver_nbs = sorted([nb for nb in neighbors if _target_from_name(nb) is not None],
+                     key=_target_from_name)
 
-    # ---- header ------------------------------------------------------------
-    print(f"\n=== Attack '{args.attack}' rollup (time-toggled duty-cycle steering) ===")
-    print("victim PCs (p, signature): " + ", ".join(f"PC{j}({p},{s})"
-                                                  for j, (p, s) in enumerate(BLEND_PCS)))
-    print(f"contestable (p < {BLEND_PMAX}): {['PC%d' % j for j in cont]}; "
-          f"anchors: {['PC%d' % j for j in pred]}")
-    print("blend model: p*(d) = (4+8d)/(28+6d)  in [0.143, 0.353];  flip duties d_crit(p): "
-          + ", ".join("p%.2f=%.2f" % (BLEND_PCS[j][0], dcrit(BLEND_PCS[j][0])) for j in cont))
-    print(f"PC mapping: {', '.join(sorted(how)) or 'n/a'}  (victim binary: {victim_bin})")
-    if ranges is None:
-        print("[WARN] could not resolve blend_pc_<j> symbols; using address-order fallback")
+    sig_pc0 = BLEND_PCS[CONTESTABLE_J][1]
 
-    # ---- run summary -------------------------------------------------------
-    print("\n--- run summary (victim = core 0) ---")
-    hdr = f"{'neighbor':<11}{'cfg':<7}{'bw3=d':>8}{'degGE4':>8}{'aggF0':>8}{'IPC':>8}"
-    print(hdr)
-    print("-" * len(hdr))
-    missing_any = False
-    for cfg in configs:
-        for nb in neighbors:
-            r = runs[(nb, cfg)]
-            if "missing" in r:
-                missing_any = True
-                print(f"{nb:<11}{cfg:<7}  MISSING: {r['missing']}")
-                continue
-            print(f"{nb:<11}{cfg:<7}{r['bw3']:>8.3f}{fmt(r['degge4'],3):>8}"
-                  f"{fmt(r['agg_f0'],3):>8}{fmt(r['ipc'],3):>8}")
-    print("(aggF0 = aggregate action-0 fraction; washed out by the +1 fallback -- the "
-          "per-PC tables below are the real readout)")
+    print(f"\n=== policy_target rollup (setpoint abstain-fraction controller) ===")
+    print(f"victim: contestable PC{CONTESTABLE_J} (p={BLEND_PCS[CONTESTABLE_J][0]}, "
+          f"sig={sig_pc0}); anchor PC{ANCHOR_J} (p={BLEND_PCS[ANCHOR_J][0]})")
+    print(f"PC mapping via nm: {'ok' if ranges else 'FALLBACK (address order)'} "
+          f"({victim_bin})")
 
-    # ---- predicted vs observed abstain cutoff, per aware duty ---------------
-    if aware_ordered:
-        print("\n--- abstain cutoff vs duty (aware; the headline 'dial') ---")
-        ch = f"{'duty':<9}{'d=bw3':>8}{'p*(d)':>8}  predicted-abstain        observed-abstain"
-        print(ch)
-        print("-" * (len(ch) + 6))
-        for key in aware_ordered:
-            d = runs[key]["bw3"]
-            ps = pstar(d)
-            predset = [f"PC{j}" for j, (p, _s) in enumerate(BLEND_PCS) if p < ps]
-            obsset = [f"PC{j}" for j in range(len(BLEND_PCS))
-                      if (verdict(dist(key, j) or {}) == "abstain")]
-            print(f"{key[0].replace('atk_',''):<9}{d:>8.3f}{ps:>8.3f}  "
-                  f"{','.join(predset) or '(none)':<24} {','.join(obsset) or '(none)'}")
+    # ---- calibration fit (aware) ------------------------------------------
+    cal_pts = []
+    for nb in cal_nbs:
+        rs = parsed(nb, "aware")
+        f0 = mean([pcf0(r, CONTESTABLE_J) for r in rs])
+        if f0 is not None:
+            cal_pts.append((_on_from_name(nb), f0))
+    inv = None
+    if cal_pts:
+        print("\n--- calibration: contestable f0 vs on_lines (aware) ---")
+        for on, f0 in sorted(cal_pts):
+            print(f"  on={on:>3} off={PERIOD - on:>3}  f0={f0:.3f}")
+        inv = fit_invert(cal_pts, SETPOINTS)
+        print("\n--- controller inversion: setpoint -> schedule ---")
+        for tgt in SETPOINTS:
+            on = inv[tgt]
+            flag = "  [CLAMPED: out of calibrated range]" if tgt in inv.clamped else ""
+            print(f"  f0*={tgt:.2f}  ->  on={on:>3} off={PERIOD - on:>3}{flag}")
+    else:
+        print("\n[WARN] no calibration points parsed (no aware cal_* runs yet)")
 
-    # ---- per-PC tables -----------------------------------------------------
-    pc_hdr = "".join(f"{'p.%02d' % round(p * 100):>7}" for p, _ in BLEND_PCS)
+    # ---- emit verification matrix -----------------------------------------
+    if args.emit_matrix and inv is not None:
+        print("\n--- verification matrix (append to codes/policy_target/matrix) ---")
+        for s in range(3):
+            print(f"victim   v_s{s}  victim.c  {s}")
+        for tgt in SETPOINTS:
+            on = inv[tgt]
+            print(f"neighbor ver_f{int(round(tgt * 100)):02d}  attacker.c  {on}  {PERIOD - on}")
 
-    # order rows: aware low->high duty, then blind low->high duty
-    def ordered_keys(cfg):
-        ks = [(nb, cfg) for nb in neighbors if "missing" not in runs[(nb, cfg)]]
-        return sorted(ks, key=lambda k: runs[k]["bw3"])
+    # ---- gates -------------------------------------------------------------
+    print("\n--- gates ---")
+    gate_rows = []
 
-    row_keys = []
-    for cfg in configs:
-        row_keys += ordered_keys(cfg)
+    # gate 1: monotone (calibration, aware)
+    if len(cal_pts) >= 2:
+        seq = [f0 for _, f0 in sorted(cal_pts)]
+        gate_rows.append(("1 monotone-dial", monotone_gate(seq, MONO_TOL),
+                          f"f0 seq {['%.2f' % v for v in seq]} (tol {MONO_TOL})"))
 
-    def per_pc_table(title, fn, nd=2):
-        print(f"\n--- {title} ---")
-        print(f"{'regime':<20}{pc_hdr}")
-        print("-" * (20 + 7 * len(BLEND_PCS)))
-        for key in row_keys:
-            cells = []
-            for j, (_p, sig) in enumerate(BLEND_PCS):
-                d = dist(key, j)
-                v = fn(d, sig) if d else None
-                s = fmt(v, nd) if (v is None or isinstance(v, float)) else str(v)
-                cells.append(f"{s:>7}")
-            label = f"{key[1]} {key[0].replace('atk_', '')} d={runs[key]['bw3']:.2f}"
-            print(f"{label:<20}{''.join(cells)}")
+    # gate 6: degree held (calibration, aware)
+    deg_vals = []
+    for nb in cal_nbs:
+        rs = parsed(nb, "aware")
+        dv = mean([r.get("degge4") for r in rs])
+        if dv is not None:
+            deg_vals.append(dv)
+    if deg_vals:
+        gate_rows.append(("6 degree-held", degree_gate(deg_vals, DEG_TOL),
+                          f"deg>=4 spread {max(deg_vals) - min(deg_vals):.3f} (tol {DEG_TOL})"))
 
-    per_pc_table("per-PC abstain f0 = frac(action 0)", lambda d, s: pc_f0(d))
-    per_pc_table("per-PC signature-gamble fraction = frac(action == signature)",
-                 lambda d, s: pc_sig_frac(d, s))
-    per_pc_table("per-PC top action", lambda d, s: pc_top(d))
-    per_pc_table("per-PC verdict (f0 > 0.5 => abstain)",
-                 lambda d, s: {"abstain": "ABST", "gamble": "gmbl"}.get(verdict(d)))
+    # gates 2-5 need verification runs
+    if ver_nbs:
+        realized = {}       # {target: [f0 per seed] aware}
+        anchor_by_duty = {}
+        blind_by_duty = {}
+        agg_mid = {}
+        for nb in ver_nbs:
+            tgt = _target_from_name(nb)
+            rs_a = parsed(nb, "aware")
+            realized[tgt] = [pcf0(r, CONTESTABLE_J) for r in rs_a
+                             if pcf0(r, CONTESTABLE_J) is not None]
+            anchor_by_duty[nb] = mean([pcf0(r, ANCHOR_J) for r in rs_a])
+            if "blind" in configs:
+                rs_b = parsed(nb, "blind")
+                blind_by_duty[nb] = mean([pcf0(r, CONTESTABLE_J) for r in rs_b])
+            if abs(tgt - 0.50) < 1e-9:
+                for r in rs_a:
+                    for a, c in r["agg"].items():
+                        agg_mid[a] = agg_mid.get(a, 0) + c
 
-    # ---- CSV ---------------------------------------------------------------
+        # gate 2: setpoint accuracy
+        sp = setpoint_gate(realized, args.tol)
+        sp_pass = all(p for p, _ in sp.values()) and len(sp) == len(SETPOINTS)
+        detail = "; ".join(f"f0*={t:.2f}:{d}" for t, (p, d) in sorted(sp.items()))
+        gate_rows.append(("2 setpoint-accuracy", sp_pass, detail))
+
+        # gate 3: full-histogram L1 at the mid setpoint (anti-degeneracy)
+        if agg_mid:
+            l1 = l1_full(agg_mid, build_target_dist(0.50, sig_pc0))
+            mid_f0 = mean(realized.get(0.50, []))
+            two_bucket = 2 * abs((mid_f0 if mid_f0 is not None else 0.50) - 0.50)
+            l1_pass = l1 < L1_MAX
+            note = ""
+            mid_sp = sp.get(0.50, (False, ""))[0]
+            if mid_sp and not l1_pass:
+                note = "  STRUCTURAL-LIMIT: f0 on target, full-histogram shape NOT controllable"
+            gate_rows.append(("3 L1-full-hist", l1_pass,
+                              f"L1={l1:.3f} (max {L1_MAX}); 2-bucket collapse={two_bucket:.3f}"
+                              f"{note}"))
+
+        # gate 4: anchor holds (at verification duties)
+        gate_rows.append(("4 anchor-holds",
+                          anchor_gate({k: v for k, v in anchor_by_duty.items() if v is not None},
+                                      ANCHOR_F0_MAX),
+                          f"anchor f0 by duty { {k: round(v, 2) for k, v in anchor_by_duty.items() if v is not None} }"))
+
+        # gate 5: isolation (blind flat)
+        if blind_by_duty:
+            gate_rows.append(("5 isolation-blind",
+                              isolation_gate({k: v for k, v in blind_by_duty.items() if v is not None},
+                                             ISO_F0_MAX),
+                              f"blind contestable f0 { {k: round(v, 2) for k, v in blind_by_duty.items() if v is not None} }"))
+    else:
+        print("  (gates 2-5 pending: no verification ver_f* runs yet -- calibration phase)")
+
+    for name, passed, detail in gate_rows:
+        print(f"  [{'PASS' if passed else 'FAIL'}] gate {name}: {detail}")
+
+    # ---- CSV + plot --------------------------------------------------------
     if args.csv:
-        cols = ["neighbor", "cfg", "bw0", "bw1", "bw2", "bw3_d", "pstar_d",
-                "deg_ge4", "agg_f0", "core0_ipc"]
-        for j, (p, _s) in enumerate(BLEND_PCS):
-            cols += [f"pc{j}_p{p}_ip", f"pc{j}_p{p}_f0", f"pc{j}_p{p}_sig",
-                     f"pc{j}_p{p}_top", f"pc{j}_p{p}_verdict"]
+        cols = ["neighbor", "cfg", "on_lines", "bw3", "f0_pc0", "f0_pc1", "deg_ge4"]
         rows = [",".join(cols)]
         for cfg in configs:
-            for nb in neighbors:
-                key = (nb, cfg)
-                r = runs[key]
-                if "missing" in r:
-                    rows.append(",".join([nb, cfg] + ["NA"] * (len(cols) - 2)))
+            for nb in cal_nbs + ver_nbs:
+                rs = parsed(nb, cfg)
+                if not rs:
                     continue
-                bw = r["bw_frac"]
-                row = [nb, cfg] + [f"{bw[L]:.4f}" for L in range(4)] + [
-                    fmt(pstar(r["bw3"]), 4), fmt(r["degge4"], 4),
-                    fmt(r["agg_f0"], 4), fmt(r["ipc"], 4)]
-                for j, (_p, sig) in enumerate(BLEND_PCS):
-                    d = dist(key, j) or {}
-                    ip = pcmap[key].get(j)
-                    row += [f"{ip:#x}" if ip is not None else "NA",
-                            fmt(pc_f0(d), 4), fmt(pc_sig_frac(d, sig), 4),
-                            str(pc_top(d)) if pc_top(d) is not None else "NA",
-                            verdict(d) or "NA"]
-                rows.append(",".join(row))
+                on = _on_from_name(nb)
+                rows.append(",".join([
+                    nb, cfg, str(on if on is not None else "NA"),
+                    fmt(mean([r["bw3"] for r in rs]), 3),
+                    fmt(mean([pcf0(r, CONTESTABLE_J) for r in rs]), 3),
+                    fmt(mean([pcf0(r, ANCHOR_J) for r in rs]), 3),
+                    fmt(mean([r.get("degge4") for r in rs]), 3)]))
         with open(args.csv, "w") as f:
             f.write("\n".join(rows) + "\n")
         print(f"\nCSV written to {args.csv}")
 
-    # ---- plots -------------------------------------------------------------
-    if args.plot:
-        make_plot(runs, pcmap, aware_ordered, args.plot)
-        aware_hi = aware_ordered[-1] if aware_ordered else None
-        blind_hi = (aware_hi[0], BLIND) if (aware_hi and BLIND in configs
-                                            and "missing" not in runs.get((aware_hi[0], BLIND),
-                                                                          {"missing": 1})) else None
-        iso_path = re.sub(r"\.png$", "", args.plot) + "_isolation.png"
-        make_isolation_plot(runs, pcmap, aware_hi, blind_hi, iso_path)
-
-    # ---- success gates -----------------------------------------------------
-    print("\n=== Success gates ===")
-    gate_fail = False
-
-    def report(n, ok, detail):
-        nonlocal gate_fail
-        tag = "SKIP" if ok is None else ("PASS" if ok else "FAIL")
-        if ok is False:
-            gate_fail = True
-        print(f"[{tag}] Gate {n}: {detail}")
-
-    if len(aware_ordered) < 2:
-        report("A-F", None, "need >=2 aware duties present to assess the dial; "
-                            f"have {[k[0] for k in aware_ordered]}")
-        print()
-        sys.exit(1 if (missing_any or gate_fail) else 0)
-
-    lo, hi = aware_ordered[0], aware_ordered[-1]
-    mid = aware_ordered[len(aware_ordered) // 2]
-    bw_lo, bw_hi = runs[lo]["bw3"], runs[hi]["bw3"]
-
-    # Gate A: dial -- contestable f0 rises monotonically with duty
-    parts, okA = [], True
-    for j in cont:
-        series = [f0(k, j) for k in aware_ordered]
-        if any(v is None for v in series):
-            okA = False
-            parts.append(f"PC{j}: unmapped")
-            continue
-        mono = all(series[i + 1] >= series[i] - MONO_TOL for i in range(len(series) - 1))
-        rise = series[-1] - series[0]
-        good = mono and rise > RISE_MIN
-        okA = okA and good
-        parts.append(f"PC{j}: f0 " + "->".join(f"{v:.2f}" for v in series) +
-                     f" (rise {rise:+.2f}) {'ok' if good else 'BAD'}")
-    report("A", okA, "dial (contestable f0 rises monotonically with duty)\n         " +
-           "\n         ".join(parts))
-
-    # Gate B: stable intermediate (make-or-break)
-    seps = [runs[aware_ordered[i + 1]]["bw3"] - runs[aware_ordered[i]]["bw3"]
-            for i in range(len(aware_ordered) - 1)]
-    graded = bw_lo < BW3_LO_MAX and all(s > BW3_SEP for s in seps)
-    if not graded:
-        report("B", False,
-               f"NO graded duty: bw3 = {[round(runs[k]['bw3'],2) for k in aware_ordered]} "
-               f"(low={bw_lo:.2f} must be < {BW3_LO_MAX}; consecutive gaps {[round(s,2) for s in seps]} "
-               f"must exceed {BW3_SEP}). The toggle window is EMPTY -- blend_bw collapses to "
-               f"the pband_bw binary switch. This is the reportable negative (binary lever "
-               f"confirmed); CALIBRATE the attacker ratios/period and re-run.")
-    else:
-        inter = []
-        for j in cont:
-            series = [f0(k, j) for k in aware_ordered]
-            if any(v is None for v in series):
-                continue
-            f_mid = f0(mid, j)
-            lo_e, hi_e = series[0], series[-1]
-            if hi_e - lo_e > 2 * MID_MARGIN and (lo_e + MID_MARGIN) < f_mid < (hi_e - MID_MARGIN):
-                inter.append(f"PC{j}: f0_mid={f_mid:.2f} in ({lo_e+MID_MARGIN:.2f},"
-                             f"{hi_e-MID_MARGIN:.2f})")
-        report("B", len(inter) > 0,
-               "stable intermediate: bw3 graded " +
-               f"{[round(runs[k]['bw3'],2) for k in aware_ordered]}; "
-               + ("; ".join(inter) if inter
-                  else "but NO contestable PC sits strictly between its low/high f0 "
-                       "(snapped to 0/1 -> thrashing, not a blend)"))
-
-    # Gate C: ordered staircase -- PC0 (p=0.30) flips at a lower duty than PC1 (p=0.33)
-    def first_flip_duty(j):
-        for k in aware_ordered:
-            v = f0(k, j)
-            if v is not None and v > F0_ABSTAIN:
-                return runs[k]["bw3"]
-        return None
-    if len(cont) >= 2:
-        d0, d1 = first_flip_duty(cont[0]), first_flip_duty(cont[1])
-        if d0 is None and d1 is None:
-            report("C", None, "ordered staircase: neither contestable PC abstained at any "
-                              "tested duty (raise the top duty / widen the sweep)")
-        else:
-            d0e = d0 if d0 is not None else float("inf")
-            d1e = d1 if d1 is not None else float("inf")
-            report("C", d0e <= d1e,
-                   f"ordered staircase: PC{cont[0]}(p={BLEND_PCS[cont[0]][0]}) first abstains "
-                   f"at d={fmt(d0)}, PC{cont[1]}(p={BLEND_PCS[cont[1]][0]}) at d={fmt(d1)} "
-                   f"(expect PC{cont[0]} <= PC{cont[1]})")
-    else:
-        report("C", None, "ordered staircase: fewer than 2 contestable PCs")
-
-    # Gate D: anchors hold at every aware duty
-    okD, badD = True, []
-    for j in pred:
-        for k in aware_ordered:
-            fv = f0(k, j)
-            sg = pc_sig_frac(dist(k, j) or {}, BLEND_PCS[j][1])
-            good = (fv is not None and sg is not None and fv < F0_PRED_MAX and sg > SIG_PRED_MIN)
-            if not good:
-                okD = False
-                badD.append(f"PC{j}@d={runs[k]['bw3']:.2f}: f0={fmt(fv)} sig={fmt(sg)}")
-    report("D", okD, "anchors hold (p>=0.45 keep gambling signature at every duty)" +
-           ("" if okD else ":\n         " + "\n         ".join(badD)))
-
-    # Gate E: isolation -- blind matches bw3 but never abstains
-    blind_present = [(nb, BLIND) for nb in neighbors
-                     if BLIND in configs and "missing" not in runs[(nb, BLIND)]]
-    if not blind_present:
-        report("E", None, "isolation: no blind runs present")
-    else:
-        okE, partsE = True, []
-        for nb in neighbors:
-            ak, bk = (nb, AWARE), (nb, BLIND)
-            if "missing" in runs.get(ak, {"missing": 1}) or "missing" in runs.get(bk, {"missing": 1}):
-                continue
-            match = abs(runs[ak]["bw3"] - runs[bk]["bw3"]) < BW3_MATCH_TOL
-            cf = [f0(bk, j) for j in cont]
-            noflip = all(v is not None and v < F0_BLIND_MAX for v in cf)
-            good = match and noflip
-            okE = okE and good
-            partsE.append(f"{nb.replace('atk_','')}: bw3 aware={runs[ak]['bw3']:.2f} "
-                          f"blind={runs[bk]['bw3']:.2f} ({'match' if match else 'MISMATCH'}); "
-                          f"blind contestable f0={[fmt(v) for v in cf]} "
-                          f"{'ok' if noflip else 'BAD'}")
-        report("E", okE, "isolation (blind: same d, no contestable abstain)\n         " +
-               "\n         ".join(partsE))
-
-    # Gate F: degree held across the aware duties
-    degs = [runs[k]["degge4"] for k in aware_ordered]
-    if any(v is None for v in degs):
-        report("F", False, f"degree held: no issued prefetches at some duty (deg={degs})")
-    else:
-        spread = max(degs) - min(degs)
-        report("F", spread < DEG_STABLE_TOL,
-               f"degree held: deg>=4 across duties = {[round(v,2) for v in degs]}, "
-               f"spread={spread:.2f} (< {DEG_STABLE_TOL})")
-
-    print()
-    sys.exit(1 if (missing_any or gate_fail) else 0)
+    if args.plot and inv is not None:
+        make_plot(cal_pts, inv, args.plot)
 
 
 if __name__ == "__main__":
