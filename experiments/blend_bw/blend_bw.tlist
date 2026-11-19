@@ -1,16 +1,12 @@
-NAME=atk_d_lo
-TRACE=$(PYTHIA_HOME)/traces/blend_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/blend_bw_atk_d_lo.champsimtrace.xz
+NAME=flo
+TRACE=$(PYTHIA_HOME)/traces/blend_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/blend_bw_flo.champsimtrace.xz
 KNOBS=
 
-NAME=atk_d_mid
-TRACE=$(PYTHIA_HOME)/traces/blend_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/blend_bw_atk_d_mid.champsimtrace.xz
+NAME=fmid
+TRACE=$(PYTHIA_HOME)/traces/blend_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/blend_bw_fmid.champsimtrace.xz
 KNOBS=
 
-NAME=atk_d_mhi
-TRACE=$(PYTHIA_HOME)/traces/blend_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/blend_bw_atk_d_mhi.champsimtrace.xz
-KNOBS=
-
-NAME=atk_d_hi
-TRACE=$(PYTHIA_HOME)/traces/blend_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/blend_bw_atk_d_hi.champsimtrace.xz
+NAME=fhi
+TRACE=$(PYTHIA_HOME)/traces/blend_bw_victim.champsimtrace.xz $(PYTHIA_HOME)/traces/blend_bw_fhi.champsimtrace.xz
 KNOBS=
 

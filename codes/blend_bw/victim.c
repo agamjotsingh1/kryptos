@@ -8,27 +8,29 @@
  * followed by ~12 register-only ALU ops. Each PC has a distinct load IP and a disjoint
  * 1 MiB region.
  *
- *   PC:  (p, signature)
- *    0   (0.21,  3)   contestable  (flip duty d_crit~0.28 -> flips at a LOW duty)
- *    1   (0.33,  5)   contestable  (flip duty d_crit~0.87 -> flips near the ceiling)
- *    2   (0.45, 11)   anchor       (above p*(d) for every reachable d -> never abstains)
- *    3   (0.65, 12)   anchor
- *    4   (0.90, 22)   anchor
+ *   PC:  (p, signature)   band vs the duty cutoffs p*(d) ~ 0.208/0.264/0.310
+ *    0   (0.185,  3)   p < 0.208        -> abstains at ALL three duties
+ *    1   (0.200,  4)   p < 0.208        -> abstains at ALL three duties
+ *    2   (0.225,  5)   0.208..0.264     -> abstains at mid, hi
+ *    3   (0.250, 10)   0.208..0.264     -> abstains at mid, hi
+ *    4   (0.275, 11)   0.264..0.310     -> abstains at hi only
+ *    5   (0.295, 12)   0.264..0.310     -> abstains at hi only
+ *    6   (0.325, 22)   p > 0.310        -> anchor (never abstains at reachable d)
+ *    7   (0.400, 23)   p > 0.310        -> anchor
  *
- * TWO contestable PCs at the EXTREMES of the clean band ~[0.21, 0.33], for maximum
- * p-separation. The first blend_bw used THREE clustered at 0.21/0.24/0.27 and they
- * flipped together as a block (no staircase); widening to 0.21 vs 0.33 is the fix under
- * test. Both stay above the normal break-even (0.143) so raw contention alone does not
- * flip them (blind isolation stays flat; p<=0.16 breaks it), and below p*(d=1)=0.353 so
- * both remain contestable. Full flips need the LONG run (SIM=50M); at 10M the agent
- * under-settles. See config.h for the full rationale.
+ * The p-values BRACKET the three duty cutoffs (two PCs per band) so the sweep resolves as
+ * a +2 staircase: d_lo flips 2 PCs, d_mid 4, d_hi 6 (a PC abstains at duty d iff p<p*(d)).
+ * All p stay above the normal break-even (0.143) so raw contention alone does not flip
+ * them (blind isolation stays flat; p<=0.16 breaks it -- 0.185 is the closest, watch it).
+ * Full flips (f0 > 0.5) need the LONG run (SIM=50M); at 10M the agent under-settles so the
+ * lines may sit below 0.5, but the staircase ORDER is the readout. See config.h.
  *
  * In blend_bw the attacker TOGGLES the shared bucket in time at a chosen duty cycle d.
  * The victim's Pythia learns against a time-average of the two reward tables, so the
- * EV-flip edge p*(d)=(4+8d)/(28+6d) rises with d from 0.143 to 0.353, crossing PC0
- * (p=0.21) first, then PC1 (p=0.33) only near max duty, as the attacker dials d up -- a
- * 2-step staircase. The anchors (p>=0.45) stay above the edge for every d and keep
- * prefetching their signature.
+ * EV-flip edge p*(d)=(4+8d)/(28+6d) rises with d from 0.143 to 0.353. Raising d lifts the
+ * abstain cutoff up through the PC band, so each higher duty crosses the abstain threshold
+ * two PCs further right -- the staircase. The anchors (p>0.310) stay above the edge for
+ * every reachable d and keep prefetching their signature.
  *
  * ---- SIX DISTINCT, NAMED LOAD PCs ----
  * The per-PC readout requires six distinct static load sites, and rollup.py must know
@@ -99,6 +101,9 @@ DEFINE_PC(1)
 DEFINE_PC(2)
 DEFINE_PC(3)
 DEFINE_PC(4)
+DEFINE_PC(5)
+DEFINE_PC(6)
+DEFINE_PC(7)
 
 int
 main(int argc, char **argv)
@@ -115,6 +120,9 @@ main(int argc, char **argv)
         blend_pc_2();
         blend_pc_3();
         blend_pc_4();
+        blend_pc_5();
+        blend_pc_6();
+        blend_pc_7();
     }
 
     /* unreachable; defeats dead-code elimination */

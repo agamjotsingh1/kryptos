@@ -213,7 +213,7 @@ def make_plot(runs, pcmap, path):
         return
 
     series = [((IDLE, AWARE), "aware idle", "#9aa5b1"),
-              ((HEAVY, AWARE), "aware heavy (attack)", "#d1495b"),
+              ((HEAVY, AWARE), "aware heavy (attack)", "#8e6cc0"),
               ((HEAVY, BLIND), "blind heavy (isolation)", "#6c8ebf")]
     n = len(PBAND_PCS)
     w = 0.26
@@ -230,7 +230,7 @@ def make_plot(runs, pcmap, path):
                 xs.append(j + (s - 1) * w)
                 ys.append(f0)
         ax.bar(xs, ys, width=w, color=color,
-               label=f"{label}  (bw3={r['bw3']:.2f})", zorder=3)
+               label=f"{label}  (d={r['bw3']:.2f})", zorder=3)
 
     # EV-flip edge between the last contestable and first predictable PC
     n_cont = sum(1 for p, _ in PBAND_PCS if p < PBAND_PMAX)
@@ -243,9 +243,7 @@ def make_plot(runs, pcmap, path):
     ax.set_xticklabels([f"PC{j}\np={p:.2f}\nsig={s}" for j, (p, s) in enumerate(PBAND_PCS)],
                        fontsize=8)
     ax.set_ylim(0, 1.0)
-    ax.set_ylabel("per-PC abstain fraction  f0 = frac(action 0)")
-    ax.set_title("pband_bw: one blind switch collapses only the contestable PCs\n"
-                 "(same bw3 under 'blind' moves nothing — isolation)", fontsize=10)
+    ax.set_ylabel("abstain fraction")
     ax.legend(frameon=False, fontsize=8, loc="upper right")
     ax.grid(axis="y", ls=":", lw=0.6, alpha=0.6)
     for sp in ("top", "right"):

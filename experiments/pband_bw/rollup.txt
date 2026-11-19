@@ -2,7 +2,7 @@
 === Attack 'pband_bw' rollup ===
 victim PCs (p, signature): PC0(0.3,3), PC1(0.33,4), PC2(0.45,5), PC3(0.55,11), PC4(0.75,12), PC5(0.95,22)
 PBAND_TARGET = ['abstain', 'abstain', 'gamble', 'gamble', 'gamble', 'gamble']   (contestable: p < 0.4)
-PC mapping: nm  (victim binary: /home/agam/Github/kryptos/build/pband_bw_victim.out)
+PC mapping: nm  (victim binary: /home/agam/Github/kryptos/codes/pband_bw/../../build/pband_bw_victim.out)
 
 --- run summary (victim = core 0) ---
 neighbor   cfg        bw3  degGE4   aggF0     IPC
@@ -51,8 +51,8 @@ blind atk_heavy     PC0=0x40309a PC1=0x4031ca PC2=0x4032fa PC3=0x40342a PC4=0x40
 aware atk_idle      PC0=0x40309a PC1=0x4031ca PC2=0x4032fa PC3=0x40342a PC4=0x40355a PC5=0x40368a
 blind atk_idle      PC0=0x40309a PC1=0x4031ca PC2=0x4032fa PC3=0x40342a PC4=0x40355a PC5=0x40368a
 
-CSV written to /home/agam/Github/kryptos/experiments/pband_bw/rollup.csv
-chart written to /home/agam/Github/kryptos/experiments/pband_bw/degree_dist.png
+CSV written to experiments/pband_bw/rollup.csv
+chart written to experiments/pband_bw/degree_dist.png
 
 === Success gates ===
 [PASS] Gate 1: differentiated steering (contestable gamble->abstain, predictable keeps signature)

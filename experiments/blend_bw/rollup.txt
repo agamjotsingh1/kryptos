@@ -1,94 +1,92 @@
 
 === Attack 'blend_bw' rollup (time-toggled duty-cycle steering) ===
-victim PCs (p, signature): PC0(0.21,3), PC1(0.33,5), PC2(0.45,11), PC3(0.65,12), PC4(0.9,22)
-contestable (p < 0.4): ['PC0', 'PC1']; anchors: ['PC2', 'PC3', 'PC4']
-blend model: p*(d) = (4+8d)/(28+6d)  in [0.143, 0.353];  flip duties d_crit(p): p0.21=0.28, p0.33=0.87
+victim PCs (p, signature): PC0(0.22,3), PC1(0.24,4), PC2(0.26,5), PC3(0.28,10), PC4(0.3,11), PC5(0.32,12), PC6(0.38,22), PC7(0.45,23)
+contestable (p < 0.347): ['PC0', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5']; anchors: ['PC6', 'PC7']
+blend model: p*(d) = (4+8d)/(28+6d)  in [0.143, 0.353];  flip duties d_crit(p): p0.22=0.32, p0.24=0.41, p0.26=0.51, p0.28=0.61, p0.30=0.71, p0.32=0.82
 PC mapping: nm  (victim binary: /home/agam/Github/kryptos/build/blend_bw_victim.out)
 
 --- run summary (victim = core 0) ---
 neighbor   cfg       bw3=d  degGE4   aggF0     IPC
 --------------------------------------------------
-atk_d_lo   aware     0.297   0.105   0.051   0.423
-atk_d_mid  aware     0.597   0.069   0.205   0.394
-atk_d_mhi  aware     0.788   0.034   0.280   0.324
-atk_d_hi   aware     0.870   0.035   0.329   0.293
-atk_d_lo   blind     0.297   0.093   0.003   0.424
-atk_d_mid  blind     0.591   0.094   0.003   0.393
-atk_d_mhi  blind     0.793   0.092   0.003   0.368
-atk_d_hi   blind     0.866   0.094   0.003   0.313
+flo        aware     0.238   0.044   0.325   0.544
+fmid       aware     0.487   0.023   0.608   0.462
+fhi        aware     0.741   0.021   0.737   0.431
+flo        blind     0.248   0.102   0.052   0.570
+fmid       blind     0.523   0.102   0.052   0.511
+fhi        blind     0.750   0.102   0.052   0.492
 (aggF0 = aggregate action-0 fraction; washed out by the +1 fallback -- the per-PC tables below are the real readout)
 
 --- abstain cutoff vs duty (aware; the headline 'dial') ---
 duty        d=bw3   p*(d)  predicted-abstain        observed-abstain
 --------------------------------------------------------------------------
-d_lo        0.297   0.214  PC0                      (none)
-d_mid       0.597   0.278  PC0                      (none)
-d_mhi       0.788   0.315  PC0                      PC0,PC1
-d_hi        0.870   0.330  PC0                      PC0,PC1
+flo         0.238   0.201  (none)                   PC0
+fmid        0.487   0.255  PC0,PC1                  PC0,PC1,PC2,PC3,PC4,PC5
+fhi         0.741   0.306  PC0,PC1,PC2,PC3,PC4      PC0,PC1,PC2,PC3,PC4,PC5
 
 --- per-PC abstain f0 = frac(action 0) ---
-regime                 p.21   p.33   p.45   p.65   p.90
--------------------------------------------------------
-aware d_lo d=0.30      0.21   0.01   0.00   0.00   0.00
-aware d_mid d=0.60     0.44   0.44   0.00   0.00   0.00
-aware d_mhi d=0.79     0.58   0.63   0.01   0.00   0.00
-aware d_hi d=0.87      0.68   0.73   0.02   0.00   0.00
-blind d_lo d=0.30      0.01   0.00   0.00   0.00   0.00
-blind d_mid d=0.59     0.01   0.00   0.00   0.00   0.00
-blind d_mhi d=0.79     0.01   0.00   0.00   0.00   0.00
-blind d_hi d=0.87      0.01   0.00   0.00   0.00   0.00
+regime                 p.22   p.24   p.26   p.28   p.30   p.32   p.38   p.45
+----------------------------------------------------------------------------
+aware flo d=0.24       0.71   0.43   0.43   0.33   0.20   0.14   0.10   0.12
+aware fmid d=0.49      0.77   0.77   0.70   0.76   0.62   0.58   0.26   0.26
+aware fhi d=0.74       0.84   0.83   0.81   0.81   0.82   0.81   0.47   0.43
+blind flo d=0.25       0.07   0.06   0.04   0.06   0.05   0.04   0.04   0.05
+blind fmid d=0.52      0.07   0.06   0.04   0.06   0.05   0.04   0.04   0.05
+blind fhi d=0.75       0.07   0.06   0.04   0.06   0.05   0.04   0.04   0.05
 
 --- per-PC signature-gamble fraction = frac(action == signature) ---
-regime                 p.21   p.33   p.45   p.65   p.90
--------------------------------------------------------
-aware d_lo d=0.30      0.01   0.97   0.99   1.00   0.99
-aware d_mid d=0.60     0.01   0.24   0.99   1.00   0.99
-aware d_mhi d=0.79     0.01   0.19   0.98   1.00   0.99
-aware d_hi d=0.87      0.01   0.17   0.97   1.00   0.99
-blind d_lo d=0.30      0.22   0.99   1.00   1.00   1.00
-blind d_mid d=0.59     0.43   0.99   1.00   1.00   1.00
-blind d_mhi d=0.79     0.58   0.99   1.00   1.00   1.00
-blind d_hi d=0.87      0.62   0.99   1.00   1.00   1.00
+regime                 p.22   p.24   p.26   p.28   p.30   p.32   p.38   p.45
+----------------------------------------------------------------------------
+aware flo d=0.24       0.12   0.43   0.44   0.53   0.66   0.74   0.78   0.75
+aware fmid d=0.49      0.09   0.10   0.18   0.12   0.26   0.31   0.64   0.64
+aware fhi d=0.74       0.05   0.06   0.09   0.08   0.08   0.11   0.45   0.49
+blind flo d=0.25       0.79   0.83   0.85   0.82   0.84   0.85   0.85   0.84
+blind fmid d=0.52      0.79   0.83   0.85   0.82   0.84   0.85   0.85   0.84
+blind fhi d=0.75       0.79   0.83   0.85   0.82   0.84   0.85   0.85   0.84
 
 --- per-PC top action ---
-regime                 p.21   p.33   p.45   p.65   p.90
--------------------------------------------------------
-aware d_lo d=0.30         1      5     11     12     22
-aware d_mid d=0.60        1      0     11     12     22
-aware d_mhi d=0.79        0      0     11     12     22
-aware d_hi d=0.87         0      0     11     12     22
-blind d_lo d=0.30         1      5     11     12     22
-blind d_mid d=0.59        3      5     11     12     22
-blind d_mhi d=0.79        3      5     11     12     22
-blind d_hi d=0.87         3      5     11     12     22
+regime                 p.22   p.24   p.26   p.28   p.30   p.32   p.38   p.45
+----------------------------------------------------------------------------
+aware flo d=0.24          0      0      5     10     11     12     22     23
+aware fmid d=0.49         0      0      0      0      0      0     22     23
+aware fhi d=0.74          0      0      0      0      0      0      0     23
+blind flo d=0.25          3      4      5     10     11     12     22     23
+blind fmid d=0.52         3      4      5     10     11     12     22     23
+blind fhi d=0.75          3      4      5     10     11     12     22     23
 
 --- per-PC verdict (f0 > 0.5 => abstain) ---
-regime                 p.21   p.33   p.45   p.65   p.90
--------------------------------------------------------
-aware d_lo d=0.30      gmbl   gmbl   gmbl   gmbl   gmbl
-aware d_mid d=0.60     gmbl   gmbl   gmbl   gmbl   gmbl
-aware d_mhi d=0.79     ABST   ABST   gmbl   gmbl   gmbl
-aware d_hi d=0.87      ABST   ABST   gmbl   gmbl   gmbl
-blind d_lo d=0.30      gmbl   gmbl   gmbl   gmbl   gmbl
-blind d_mid d=0.59     gmbl   gmbl   gmbl   gmbl   gmbl
-blind d_mhi d=0.79     gmbl   gmbl   gmbl   gmbl   gmbl
-blind d_hi d=0.87      gmbl   gmbl   gmbl   gmbl   gmbl
+regime                 p.22   p.24   p.26   p.28   p.30   p.32   p.38   p.45
+----------------------------------------------------------------------------
+aware flo d=0.24       ABST   gmbl   gmbl   gmbl   gmbl   gmbl   gmbl   gmbl
+aware fmid d=0.49      ABST   ABST   ABST   ABST   ABST   ABST   gmbl   gmbl
+aware fhi d=0.74       ABST   ABST   ABST   ABST   ABST   ABST   gmbl   gmbl
+blind flo d=0.25       gmbl   gmbl   gmbl   gmbl   gmbl   gmbl   gmbl   gmbl
+blind fmid d=0.52      gmbl   gmbl   gmbl   gmbl   gmbl   gmbl   gmbl   gmbl
+blind fhi d=0.75       gmbl   gmbl   gmbl   gmbl   gmbl   gmbl   gmbl   gmbl
 
-CSV written to experiments/blend_bw/rollup.csv
-chart written to experiments/blend_bw/degree_dist.png
-isolation chart written to experiments/blend_bw/degree_dist_isolation.png
+CSV written to /home/agam/Github/kryptos/experiments/blend_bw/rollup.csv
+chart written to /home/agam/Github/kryptos/experiments/blend_bw/degree_dist.png
+isolation chart written to /home/agam/Github/kryptos/experiments/blend_bw/degree_dist_isolation.png
 
 === Success gates ===
-[PASS] Gate A: dial (contestable f0 rises monotonically with duty)
-         PC0: f0 0.21->0.44->0.58->0.68 (rise +0.46) ok
-         PC1: f0 0.01->0.44->0.63->0.73 (rise +0.72) ok
-[FAIL] Gate B: NO graded duty: bw3 = [0.3, 0.6, 0.79, 0.87] (low=0.30 must be < 0.8; consecutive gaps [0.3, 0.19, 0.08] must exceed 0.12). The toggle window is EMPTY -- blend_bw collapses to the pband_bw binary switch. This is the reportable negative (binary lever confirmed); CALIBRATE the attacker ratios/period and re-run.
-[PASS] Gate C: ordered staircase: PC0(p=0.21) first abstains at d=0.79, PC1(p=0.33) at d=0.79 (expect PC0 <= PC1)
-[PASS] Gate D: anchors hold (p>=0.45 keep gambling signature at every duty)
+[FAIL] Gate A: dial (contestable f0 rises monotonically with duty)
+         PC0: f0 0.71->0.77->0.84 (rise +0.13) BAD
+         PC1: f0 0.43->0.77->0.83 (rise +0.40) ok
+         PC2: f0 0.43->0.70->0.81 (rise +0.39) ok
+         PC3: f0 0.33->0.76->0.81 (rise +0.48) ok
+         PC4: f0 0.20->0.62->0.82 (rise +0.62) ok
+         PC5: f0 0.14->0.58->0.81 (rise +0.67) ok
+[PASS] Gate B: stable intermediate: bw3 graded [0.24, 0.49, 0.74]; PC2: f0_mid=0.70 in (0.53,0.71); PC4: f0_mid=0.62 in (0.30,0.72); PC5: f0_mid=0.58 in (0.24,0.71)
+[PASS] Gate C: ordered staircase: PC0(p=0.22) first abstains at d=0.24, PC1(p=0.24) at d=0.49 (expect PC0 <= PC1)
+[FAIL] Gate D: anchors hold (p>=0.45 keep gambling signature at every duty):
+         PC6@d=0.24: f0=0.10 sig=0.78
+         PC6@d=0.49: f0=0.26 sig=0.64
+         PC6@d=0.74: f0=0.47 sig=0.45
+         PC7@d=0.24: f0=0.12 sig=0.75
+         PC7@d=0.49: f0=0.26 sig=0.64
+         PC7@d=0.74: f0=0.43 sig=0.49
 [PASS] Gate E: isolation (blind: same d, no contestable abstain)
-         d_lo: bw3 aware=0.30 blind=0.30 (match); blind contestable f0=['0.01', '0.00'] ok
-         d_mid: bw3 aware=0.60 blind=0.59 (match); blind contestable f0=['0.01', '0.00'] ok
-         d_mhi: bw3 aware=0.79 blind=0.79 (match); blind contestable f0=['0.01', '0.00'] ok
-         d_hi: bw3 aware=0.87 blind=0.87 (match); blind contestable f0=['0.01', '0.00'] ok
-[PASS] Gate F: degree held: deg>=4 across duties = [0.1, 0.07, 0.03, 0.04], spread=0.07 (< 0.15)
+         flo: bw3 aware=0.24 blind=0.25 (match); blind contestable f0=['0.07', '0.06', '0.04', '0.06', '0.05', '0.04'] ok
+         fmid: bw3 aware=0.49 blind=0.52 (match); blind contestable f0=['0.07', '0.06', '0.04', '0.06', '0.05', '0.04'] ok
+         fhi: bw3 aware=0.74 blind=0.75 (match); blind contestable f0=['0.07', '0.06', '0.04', '0.06', '0.05', '0.04'] ok
+[PASS] Gate F: degree held: deg>=4 across duties = [0.04, 0.02, 0.02], spread=0.02 (< 0.15)
 

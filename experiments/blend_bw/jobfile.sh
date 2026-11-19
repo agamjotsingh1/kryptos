@@ -1,26 +1,23 @@
-#!/bin/bash -l
+#!/bin/bash
 #
 #
 #
 # Traces:
-#    atk_d_lo
-#    atk_d_mid
-#    atk_d_mhi
-#    atk_d_hi
+#    flo
+#    fmid
+#    fhi
 #
 #
 # Experiments:
-#    aware: --warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/aware.ini
-#    blind: --warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/blind.ini
+#    aware: --warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/aware_blend.ini
+#    blind: --warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/blind_blend.ini
 #
 #
 #
 #
-sbatch -p debug --mincpus=1 -c 2 -J atk_d_lo_aware -o atk_d_lo_aware.out -e atk_d_lo_aware.err /home/agam/Github/kryptos/wrapper.sh /home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core "--warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/aware.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_atk_d_lo.champsimtrace.xz"
-sbatch -p debug --mincpus=1 -c 2 -J atk_d_lo_blind -o atk_d_lo_blind.out -e atk_d_lo_blind.err /home/agam/Github/kryptos/wrapper.sh /home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core "--warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/blind.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_atk_d_lo.champsimtrace.xz"
-sbatch -p debug --mincpus=1 -c 2 -J atk_d_mid_aware -o atk_d_mid_aware.out -e atk_d_mid_aware.err /home/agam/Github/kryptos/wrapper.sh /home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core "--warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/aware.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_atk_d_mid.champsimtrace.xz"
-sbatch -p debug --mincpus=1 -c 2 -J atk_d_mid_blind -o atk_d_mid_blind.out -e atk_d_mid_blind.err /home/agam/Github/kryptos/wrapper.sh /home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core "--warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/blind.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_atk_d_mid.champsimtrace.xz"
-sbatch -p debug --mincpus=1 -c 2 -J atk_d_mhi_aware -o atk_d_mhi_aware.out -e atk_d_mhi_aware.err /home/agam/Github/kryptos/wrapper.sh /home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core "--warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/aware.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_atk_d_mhi.champsimtrace.xz"
-sbatch -p debug --mincpus=1 -c 2 -J atk_d_mhi_blind -o atk_d_mhi_blind.out -e atk_d_mhi_blind.err /home/agam/Github/kryptos/wrapper.sh /home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core "--warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/blind.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_atk_d_mhi.champsimtrace.xz"
-sbatch -p debug --mincpus=1 -c 2 -J atk_d_hi_aware -o atk_d_hi_aware.out -e atk_d_hi_aware.err /home/agam/Github/kryptos/wrapper.sh /home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core "--warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/aware.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_atk_d_hi.champsimtrace.xz"
-sbatch -p debug --mincpus=1 -c 2 -J atk_d_hi_blind -o atk_d_hi_blind.out -e atk_d_hi_blind.err /home/agam/Github/kryptos/wrapper.sh /home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core "--warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/blind.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_atk_d_hi.champsimtrace.xz"
+/home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core --warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/aware_blend.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_flo.champsimtrace.xz > flo_aware.out 2>&1
+/home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core --warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/blind_blend.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_flo.champsimtrace.xz > flo_blind.out 2>&1
+/home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core --warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/aware_blend.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_fmid.champsimtrace.xz > fmid_aware.out 2>&1
+/home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core --warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/blind_blend.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_fmid.champsimtrace.xz > fmid_blind.out 2>&1
+/home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core --warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/aware_blend.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_fhi.champsimtrace.xz > fhi_aware.out 2>&1
+/home/agam/Github/kryptos/bin/perceptron-multi-multi-no-ship-2core --warmup_instructions=10000000 --simulation_instructions=50000000 --l2c_prefetcher_types=scooby --config=/home/agam/Github/kryptos/codes/blend_bw/blind_blend.ini  -traces /home/agam/Github/kryptos/traces/blend_bw_victim.champsimtrace.xz /home/agam/Github/kryptos/traces/blend_bw_fhi.champsimtrace.xz > fhi_blind.out 2>&1

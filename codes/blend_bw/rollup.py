@@ -2,10 +2,11 @@
 """
 rollup.py - result analysis for the 'blend_bw' time-toggled duty-cycle steering attack.
 
-Victim (core 0) has FIVE load PCs of differing predictability
-(p, signature) = [(0.21,3),(0.33,5),(0.45,11),(0.65,12),(0.90,22)] -- only the first TWO
-(p=0.21, p=0.33) are contestable, placed at the band extremes for max separation. The
-neighbor (core 1) is the SAME attacker toggled at FOUR duty cycles (atk_d_lo/mid/mhi/hi):
+Victim (core 0) has EIGHT load PCs whose predictabilities BRACKET the three duty cutoffs
+p*(d) ~ 0.208/0.264/0.310 (two PCs per band): p = 0.185,0.200 | 0.225,0.250 | 0.275,0.295
+| 0.325,0.400. A PC abstains at duty d iff p < p*(d), so the sweep should resolve as a +2
+staircase (d_lo flips 2 PCs, d_mid 4, d_hi 6). The neighbor (core 1) is the SAME
+attacker toggled at THREE duty cycles (atk_d_lo/mid/hi):
 each ON phase saturates the shared DRAM bucket, each OFF phase lets its EWMA decay, so
 the victim's scooby spends a fraction d of its SARSA updates under the high-bandwidth
 reward table. d (the "blend fraction") is read off the victim's own bw-level histogram
@@ -52,10 +53,11 @@ import subprocess
 import sys
 
 # --- victim definition (keep in lockstep with config.h) ---
-# TWO contestable PCs at the band extremes (0.21, 0.33) for max p-separation; the rest
-# anchors. (First attempt used three clustered at 0.21/0.24/0.27 -> flipped as a block.)
-BLEND_PCS = [(0.21, 3), (0.33, 5), (0.45, 11), (0.65, 12), (0.90, 22)]
-BLEND_PMAX = 0.40          # contestable (blend-reachable) <=> p < this (p < p*(1)=0.353)
+# EIGHT PCs whose p-values BRACKET the three duty cutoffs p*(d) ~ 0.208/0.264/0.310 (two
+# PCs per band) so the sweep resolves as a +2 staircase: d_lo flips 2 PCs, d_mid 4, d_hi 6.
+BLEND_PCS = [(0.22, 3), (0.24, 4), (0.26, 5), (0.28, 10),
+             (0.30, 11), (0.32, 12), (0.38, 22), (0.45, 23)]
+BLEND_PMAX = 0.347         # contestable (blend-reachable) <=> p < this (p < p*(d_ceiling~0.89))
 PC_SYMBOL = "blend_pc_{}"  # victim.c: one noinline function per PC
 
 # scooby_actions order == order scooby dumps per-PC counts in (aware.ini/blind.ini)
@@ -240,9 +242,10 @@ def _mpl():
 
 
 def make_plot(runs, pcmap, aware_ordered, path):
-    """THE requested chart: per PC, one bar PER DUTY CYCLE (aware), ordered by measured
-    bw3 (= the blend fraction d). As the duty rises the contestable PCs' bars cross the
-    abstain line while the anchors stay flat -- the abstain cutoff sweeps up the p-axis."""
+    """THE requested chart: ONE LINE PER DUTY CYCLE (aware), ordered by measured bw3 (=
+    the blend fraction d), over the victim PCs sorted by predictability p. As the duty
+    rises the whole abstain curve lifts -- the three duty lines separate vertically and
+    the abstain cutoff sweeps right up the p-axis while the anchors stay flat near 0."""
     plt = _mpl()
     if plt is None:
         return
@@ -251,40 +254,48 @@ def make_plot(runs, pcmap, aware_ordered, path):
     if k == 0:
         print("[plot] no aware runs; skipping main chart")
         return
-    w = 0.8 / k
-    fig, ax = plt.subplots(figsize=(9, 4.8))
+    xs = list(range(n))
+    fig, ax = plt.subplots(figsize=(9.2, 5.2))
 
     for s, key in enumerate(aware_ordered):
         r = runs[key]
         color = DUTY_COLORS[min(s, len(DUTY_COLORS) - 1)] if k <= len(DUTY_COLORS) \
             else plt.cm.YlOrRd((s + 1) / (k + 1))
-        xs, ys = [], []
+        xp, yp = [], []
         for j in range(n):
             ip = pcmap.get(key, {}).get(j)
             f0 = pc_f0(r["per_pc"].get(ip, {})) if ip is not None else None
             if f0 is not None:
-                xs.append(j + (s - (k - 1) / 2.0) * w)
-                ys.append(f0)
-        ax.bar(xs, ys, width=w, color=color, zorder=3,
-               label=f"{key[0].replace('atk_', '')}:  d≈{r['bw3']:.2f}")
-        # predicted flip edge at this duty: shade PCs the model says should abstain
-        ps = pstar(r["bw3"])
-        n_pred = sum(1 for p, _ in BLEND_PCS if p < ps)
-        ax.axvline(n_pred - 0.5, ls="--", lw=1.0, color=color, alpha=0.7, zorder=1)
+                xp.append(j)
+                yp.append(f0)
+        ax.plot(xp, yp, marker="o", ms=6, lw=2.2, color=color, zorder=3,
+                label=f"{key[0].replace('atk_', '')}:  d≈{r['bw3']:.2f}")
 
     ax.axhline(F0_ABSTAIN, ls=":", lw=0.9, color="#333", zorder=2)
-    ax.text(n - 0.5, F0_ABSTAIN + 0.01, "abstain", fontsize=8, color="#333",
+    ax.text(n - 1, F0_ABSTAIN + 0.012, "abstain", fontsize=8, color="#333",
             ha="right", va="bottom")
 
-    ax.set_xticks(range(n))
+    # per-duty PREDICTED cutoff: p*(bw3) in that duty's colour. PCs left of the line are
+    # predicted to abstain at that duty (p < p*). A correct staircase => each line's
+    # observed crossing lands at its own coloured cutoff.
+    for s, key in enumerate(aware_ordered):
+        color = DUTY_COLORS[min(s, len(DUTY_COLORS) - 1)] if k <= len(DUTY_COLORS) \
+            else plt.cm.YlOrRd((s + 1) / (k + 1))
+        ps = pstar(runs[key]["bw3"])
+        n_pred = sum(1 for p, _ in BLEND_PCS if p < ps)
+        if 0 < n_pred <= n:
+            ax.axvline(n_pred - 0.5, ls="--", lw=1.1, color=color, alpha=0.8, zorder=1)
+
+    ax.set_xticks(xs)
     ax.set_xticklabels([f"PC{j}\np={p:.2f}\nsig={s}" for j, (p, s) in enumerate(BLEND_PCS)],
                        fontsize=8)
+    ax.set_xlabel("victim PC  (increasing predictability p →)")
     ax.set_ylim(0, 1.0)
     ax.set_ylabel("per-PC abstain fraction  f0 = frac(action 0)")
-    ax.set_title("blend_bw: raising the attacker's DUTY CYCLE sweeps the abstain cutoff "
-                 "up the p-order\n(dashed line per duty = EV-flip edge p*(d) predicted "
-                 "from that run's measured d)", fontsize=9.5)
-    ax.legend(frameon=False, fontsize=8, loc="upper right", title="duty (aware)")
+    ax.set_title("blend_bw: raising the attacker's DUTY CYCLE steps the abstain cutoff up "
+                 "the p-axis\n(dashed line per duty = predicted cutoff p*(d); each higher "
+                 "duty should flip ~2 more PCs)", fontsize=9.5)
+    ax.legend(frameon=False, fontsize=9, loc="upper right", title="duty (aware)")
     ax.grid(axis="y", ls=":", lw=0.6, alpha=0.6)
     for sp in ("top", "right"):
         ax.spines[sp].set_visible(False)

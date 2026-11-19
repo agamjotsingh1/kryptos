@@ -1,47 +1,14 @@
-# blend_bw run matrix  (read by scripts/launch.sh)
-#
-# Time-toggled duty-cycle policy steering (blend_bw_methodology). ONE victim on core 0
-# (mixed-predictability, 2 contestable PCs at the band extremes), co-located against the
-# SAME attacker at FOUR duty cycles on core 1, crossed with aware (reward live) and blind
-# (reward inert). 4 neighbors x 2 configs = 8 runs.
-#
-#   victim   <source>                 [prog-args...]
-#   neighbor <name> <source>          [prog-args...]
-#   config   <name> <ini>
-#
-# Output .out files are named <neighbor>_<config>.out (consumed by rollup.py).
-# rollup.py also reads build/blend_bw_victim.out (via nm) to map trigger PCs to the
-# victim's blend_pc_<j> load sites.
+# blend_bw FINAL (50M) -- blended-Q staircase, duties recalibrated LOW.
+# Fixes: fallback gating OFF + sum pooling (paper) + fast period 80 + ALU 16 + band[0.22,0.45].
+# Duties lowered (prev 50M landed d=0.56/0.74/0.88, saturated). 10M calib -> these target
+# 50M d ~ 0.25/0.48/0.72 so p*(d) sweeps the band +2 PCs/step and anchors (0.38,0.45) hold.
+# Config NAMES stay aware/blind. Restore standard attack: matrix.standard.bak (scratchpad).
 
 victim   victim.c
 
-# TIME-TOGGLED duty cycle. Attacker args are "<on_lines> <off_iters>": ON streams
-# on_lines fresh 64 MiB lines (saturates the shared bucket), OFF does off_iters pure-ALU
-# ops (lets the bucket EWMA decay). Raising the on:off ratio raises the effective blend
-# fraction d (= the victim's measured bw3, reported by rollup). The three settings are a
-# STARTING TRIPLET meant to span low / mid / high d; they almost certainly need one
-# CALIBRATION pass -- run short (LOCAL=1, small SIM), read bw3 per run, and adjust the
-# ratios so bw3 lands near ~0.3 / ~0.6 / ~0.9, AND sweep the period (scale both numbers
-# together) to find the window where the mid duty is a STABLE intermediate rather than
-# snapping to 0/1 (see attacker.c window caveat). rollup orders the bars by measured bw3.
-#
-# CALIBRATED (on/off -> measured d=bw3; 10M calib, confirmed ~ at 50M):
-#   64/4096->0.04, 256/2048->0.30, 1024/2048->0.60, 1024/512->0.72, 4096/64->0.89
-# Key finding: d SATURATES at ~0.89 for any nonzero off (the throttled victim under-samples
-# its own ON phase); only off=0 (= pband heavy) reaches ~0.94. So the reachable duty is
-# [~0.04, ~0.89]. We now use FOUR duties to finely sample the crossing region (the first
-# attempt's three duties 0.30/0.60/0.89 left PC0's ~0.67 crossing unsampled):
-#   atk_d_lo 256/2048->0.30, atk_d_mid 1024/2048->0.60, atk_d_mhi 1024/512->0.72,
-#   atk_d_hi 4096/64->0.89.
-# The victim's TWO contestable p's (0.21, 0.33, see config.h) flip at d_crit 0.28 / 0.87.
-# PC0 (0.21) should cross by the mid/mhi duties; PC1 (0.33) only near the top duty -> the
-# 2-step staircase. rollup orders the bars by measured bw3, not the nominal ratio.
-neighbor atk_d_lo   attacker.c   256  2048
-neighbor atk_d_mid  attacker.c  1024  2048
-neighbor atk_d_mhi  attacker.c  1024   512
-neighbor atk_d_hi   attacker.c  4096    64
+neighbor flo   attacker.c   12  68
+neighbor fmid  attacker.c   24  56
+neighbor fhi   attacker.c   44  36
 
-# aware = HBW reward table live (attack); blind = reward table inert (isolation).
-# Both pin the HBW degree curve EQUAL to normal and enable the per-PC counter.
-config   aware   aware.ini
-config   blind   blind.ini
+config   aware   aware_blend.ini
+config   blind   blind_blend.ini

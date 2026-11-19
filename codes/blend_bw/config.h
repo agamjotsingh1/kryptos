@@ -21,25 +21,25 @@
  *
  * The victim keeps pband_bw's STRUCTURE (mixed-predictability PCs, disjoint 1 MiB
  * regions, non-action noise, ALU density, blend_pc_<j> load sites) but DEVIATES in the
- * per-PC predictabilities. The FIRST blend_bw attempt clustered three contestable PCs at
- * 0.21/0.24/0.27 (a 0.06-wide band); they flipped together as a BLOCK -- the ordered
- * staircase never resolved (ATTACK.md 8). ROOT CAUSE: the featurewise +1 action-fallback
- * washes out per-PC learnability, so p's 0.03 apart are indistinguishable, and the
- * observed flip duty lags the EV model by ~+0.5 (all PCs pile at the d ceiling). The
- * REDESIGN uses only TWO contestable PCs at the band EXTREMES (0.21, 0.33) for maximum
- * p-separation. Two constraints still bound the band:
+ * per-PC predictabilities. Prior attempts: three clustered contestable PCs
+ * (0.21/0.24/0.27) flipped together as a BLOCK (no staircase; ATTACK.md 8), and two PCs
+ * at the band extremes (0.21, 0.33) still flipped together (the +1 fallback washes out
+ * per-PC learnability). The staircase is not resolvable here, so the CURRENT goal is to
+ * cleanly VISUALISE the duty dial instead: FIVE contestable PCs densely sampling the
+ * reachable band, read out as one line per duty. Two constraints bound the band:
  *   - Upper: p < p*(d=1)=0.353, and the measured blend fraction d saturates (~0.78 at
  *     10M, ~0.89 at 50M; a nonzero OFF phase lets the throttled victim under-sample its
- *     own ON phase). p=0.33 sits just under the ceiling -> flips only near max duty.
+ *     own ON phase). p=0.33 sits just under the ceiling.
  *   - Lower: p must stay comfortably ABOVE the NORMAL-reward break-even (0.143), or raw
  *     contention tips it to abstain even with the HBW table OFF -- which breaks the
  *     isolation control. (Observed: p=0.16 abstained under the blind config too.)
- * d_crit(p)=(28p-4)/(8-6p): 0.21->0.28, 0.33->0.87. NOTE: full flips need the LONG run
- * (SIM=50M); at 10M the agent under-settles and f0 caps below 0.5. The measurement half
- * (blend_pc_<j>, nm mapping on build/blend_bw_victim.out) is unchanged from pband.
+ * NOTE: full flips (f0 > 0.5) need the LONG run (SIM=50M); at 10M the agent under-settles
+ * and absolute f0 is lower, but the three duty lines still separate (the dial is a
+ * relative effect). The measurement half (blend_pc_<j>, nm mapping on
+ * build/blend_bw_victim.out) is unchanged from pband.
  *
- * Reference provenance (STRUCTURE from pband; p-values tuned for a 2-step staircase):
- *   PCS   = [(0.21,3),(0.33,5),(0.45,11),(0.65,12),(0.90,22)]
+ * Reference provenance (STRUCTURE from pband; p-values bracket the p*(d) cutoffs):
+ *   PCS   = [(0.185,3),(0.20,4),(0.225,5),(0.25,10),(0.275,11),(0.295,12),(0.325,22),(0.40,23)]
  *   NOISE = (7, 8, 9, 13, 14)
  *   ALU   = 12
  *   region_lines_per_pc = 1<<14
@@ -53,9 +53,10 @@
 #define LINE_BYTES   64UL
 
 /* ------------------------------------------------------------------ victim -- */
-/* FIVE load PCs, one disjoint 1 MiB region each. (pband_bw used six; blend_bw drops
- * to TWO contestable PCs so the staircase has the widest possible p-separation.) */
-#define VICTIM_N_PC                5
+/* EIGHT load PCs, one disjoint 1 MiB region each. The p-values BRACKET the three
+ * duty cutoffs p*(d) (two PCs in each band) so the duty sweep resolves as a +2
+ * staircase: at each higher duty, two more PCs cross the abstain cutoff. */
+#define VICTIM_N_PC                8
 #define VICTIM_REGION_LINES_PER_PC (1UL << 14)                         /* 16384 lines */
 #define VICTIM_REGION_BYTES_PER_PC (VICTIM_REGION_LINES_PER_PC * LINE_BYTES) /* 1 MiB */
 
@@ -63,29 +64,40 @@
  * (the featurewise action-fallback attractor). p is the probability the PC advances
  * by its signature; otherwise it advances by a NOISE delta.
  *
- * STAIRCASE REDESIGN. The earlier triplet (0.21, 0.24, 0.27) was clustered in a
- * 0.06-wide band: all three flipped together as a BLOCK (no ordered staircase; see
- * ATTACK.md 8). The featurewise +1 fallback washes out per-PC learnability, so three
- * p's 0.03 apart cannot resolve. We now use only TWO contestable PCs at the EXTREMES of
- * the clean band ~[0.21, 0.33]:
- *   PC0 p=0.21  d_crit=(28p-4)/(8-6p)=0.28  -> should flip at a LOW duty
- *   PC1 p=0.33  d_crit=0.87                 -> should flip only near the ceiling
- * Max separation gives the best chance of a visible 2-step staircase (PC0 before PC1).
- * Lower bound 0.21: below it raw contention flips the PC even blind (isolation breaks).
- * Upper bound 0.33 < p*(d=1)=0.353: still contestable, but near the reachable d ceiling
- * (~0.89), so PC1 may only flip marginally -- the open empirical question this re-run
- * tests. The PCs with p >= 0.45 sit above p*(d) for every reachable d -> anchors. */
-#define VICTIM_PC_P    { 0.21, 0.33, 0.45, 0.65, 0.90 }
-#define VICTIM_PC_SIG  {    3,    5,   11,   12,   22 }
+ * STAIRCASE BY p*(d) BRACKETING (current). The abstain cutoff at blend fraction d is
+ * p*(d) = (4+8d)/(28+6d). At the three measured duties d ~ 0.27 / 0.53 / 0.76 the cutoffs
+ * are p* ~ 0.208 / 0.264 / 0.310. A PC abstains at duty d iff its p < p*(d). Placing TWO
+ * PCs in each band between consecutive cutoffs makes the sweep resolve as a +2 staircase:
+ *   band              PCs (p)        abstains at
+ *   p  < 0.208        0.185, 0.200   all three duties (lo, mid, hi)
+ *   0.208..0.264      0.225, 0.250   mid and hi
+ *   0.264..0.310      0.275, 0.295   hi only
+ *   p  > 0.310        0.325, 0.400   never (reachable d) -> anchors
+ * So d_lo should flip 2 PCs, d_mid 4, d_hi 6: each higher duty line crosses the abstain
+ * threshold two PCs further right. Lower bound caveat: 0.185 sits only ~0.025 above the
+ * isolation floor (p=0.16 abstained even blind) -- watch the blind control there. NOTE:
+ * at SIM=10M the agent under-settles (absolute f0 lower than at 50M), so the lines may
+ * sit below 0.5 even where the model predicts a flip; the staircase ORDER is the readout.
+ * The plot draws each duty's predicted cutoff p*(bw3) as a vertical line in that duty's
+ * colour, so observed vs predicted flip is visible directly. */
+/* Band LIFTED off the contention/isolation floor: the earlier 0.185/0.200 PCs abstained
+ * even under blind (contention alone), breaking isolation. Lowest p now 0.22. Six PCs in
+ * the crossover zone [0.22,0.32] bracket the reachable p*(d) cutoffs; 0.38,0.45 anchors. */
+#define VICTIM_PC_P    { 0.22, 0.24, 0.26, 0.28, 0.30, 0.32, 0.38, 0.45 }
+#define VICTIM_PC_SIG  {    3,    4,    5,   10,   11,   12,   22,   23 }
 
 /* Non-action noise deltas: deliberately NOT in scooby_actions, so Pythia can only
  * ever be correct on the signature -> a clean per-PC fingerprint. */
 #define VICTIM_NOISE   { 7, 8, 9, 13, 14 }
 #define VICTIM_N_NOISE 5
 
-/* Register-only ALU work after each load (keeps victim self-bandwidth low so the
- * low-duty baseline is clean). 2 C iterations ~= the reference's 12 ALU instr/load. */
-#define VICTIM_ALU_ITERS 2
+/* Register-only ALU work after each load. Beyond keeping victim self-bandwidth low, the
+ * ALU density sets the victim's Q-update RATE relative to the attacker's toggle: MORE ALU
+ * -> fewer triggers per toggle period -> each phase contributes fewer SARSA updates -> Q
+ * integrates across MORE phases -> the blended-Q crossover tracks p*(d) with a smaller
+ * over-abstention offset (lever 3, orthogonal to the attacker period). Raised 2 -> 16 to
+ * shrink the residual offset the fast-toggle sweep bottomed out at. */
+#define VICTIM_ALU_ITERS 16
 
 /* ---------------------------------------------------------------- attacker -- */
 /* TIME-TOGGLED duty cycle (blend_bw_methodology). The attacker alternates:
