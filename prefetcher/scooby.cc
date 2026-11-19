@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <algorithm>
+#include <cstdlib>
 #include <iomanip>
 #include "champsim.h"
 #include "cache.h"
@@ -899,6 +900,33 @@ void Scooby::update_per_pc_stats(uint64_t pc, uint32_t action_index)
 	else
 	{
 		it->second[action_index]++;
+	}
+
+	/* Read-only TIMED windowed dump for the persistence/decay experiment.
+	   Gated by env SCOOBY_TIMEDUMP so it is inert in every normal run. For each
+	   trigger PC it prints the abstain fraction over a fixed window of that PC's
+	   own predictions, tagged with the window index and the current bw_level, so
+	   one attacker-ON-then-OFF run yields f0(t) (= windows) per PC. Keyed by pc,
+	   so the two cores' PCs never share a counter. */
+	static const bool TIMEDUMP = (getenv("SCOOBY_TIMEDUMP") != nullptr);
+	if(TIMEDUMP)
+	{
+		static std::map<uint64_t, uint64_t> win_tot, win_abs, win_idx;
+		static const char *kenv = getenv("SCOOBY_TIMEDUMP_K");
+		const uint64_t K = kenv ? strtoull(kenv, nullptr, 0) : 2000; /* predictions per window */
+		win_tot[pc]++;
+		if(Actions[action_index] == 0) win_abs[pc]++;   /* action 0 == abstain */
+		if(win_tot[pc] >= K)
+		{
+			cout << "scooby_timedump " << hex << pc << dec
+			     << " " << win_idx[pc]
+			     << " " << win_abs[pc]
+			     << " " << win_tot[pc]
+			     << " " << (uint32_t)bw_level << endl;
+			win_idx[pc]++;
+			win_tot[pc] = 0;
+			win_abs[pc] = 0;
+		}
 	}
 }
 
