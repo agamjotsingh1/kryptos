@@ -1,0 +1,28 @@
+# policy_target run matrix  (read by scripts/launch.sh)
+#
+# CALIBRATION PHASE. One victim trace on core 0 (two PCs: contestable p=0.31, anchor
+# p=0.55), co-located against each calibration neighbor on core 1, crossed with each
+# config. The attacker is blend_bw/attacker.c verbatim: <on_lines> <off_iters>, FIXED
+# PERIOD 80 (on+off=80), sweeping duty so rollup.py can fit f0 vs on_lines (1-D) and
+# invert it for the setpoints {0.25,0.50,0.75}. The computed verification duties (and
+# multi-seed victims) are appended to this file in Task 5 after the calibration run.
+#
+# Columns: victim <source> [args] | neighbor <name> <source> [args] | config <name> <ini>
+# Output .out files: <neighbor>_<config>.out (consumed by rollup.py).
+
+victim   victim.c
+
+neighbor cal_on08  attacker.c   8  72
+neighbor cal_on16  attacker.c  16  64
+neighbor cal_on24  attacker.c  24  56
+neighbor cal_on32  attacker.c  32  48
+neighbor cal_on40  attacker.c  40  40
+neighbor cal_on48  attacker.c  48  32
+neighbor cal_on56  attacker.c  56  24
+neighbor cal_on64  attacker.c  64  16
+neighbor cal_on72  attacker.c  72   8
+
+# aware = HBW reward table LIVE (attack); blind = reward table INERT (isolation).
+# Both pin the HBW degree curve EQUAL to normal (degree lever off) and keep per-PC stats.
+config   aware   aware.ini
+config   blind   blind.ini
