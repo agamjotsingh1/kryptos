@@ -101,7 +101,7 @@
  * integrates across MORE phases -> the blended-Q crossover tracks p*(d) with a smaller
  * over-abstention offset (lever 3, orthogonal to the attacker period). Raised 2 -> 16 to
  * shrink the residual offset the fast-toggle sweep bottomed out at. */
-#define VICTIM_ALU_ITERS 16
+#define VICTIM_ALU_ITERS 40
 
 /* ---------------------------------------------------------------- attacker -- */
 /* TIME-TOGGLED duty cycle (blend_bw_methodology). The attacker alternates:

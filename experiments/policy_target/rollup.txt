@@ -1,0 +1,28 @@
+
+=== policy_target rollup (setpoint abstain-fraction controller) ===
+victim: contestable PC0 (p=0.31, sig=4); anchor PC1 (p=0.55)
+PC mapping via nm: ok (/home/agam/Github/kryptos/build/policy_target_victim.out)
+
+--- calibration: contestable f0 vs on_lines (aware) ---
+  on=  8 off= 72  f0=0.009
+  on= 14 off= 66  f0=0.050
+  on= 16 off= 64  f0=0.093
+  on= 18 off= 62  f0=0.134
+  on= 20 off= 60  f0=0.430
+  on= 22 off= 58  f0=0.525
+  on= 24 off= 56  f0=0.557
+  on= 32 off= 48  f0=0.740
+  on= 48 off= 32  f0=0.792
+
+--- controller inversion: setpoint -> schedule ---
+  f0*=0.25  ->  on= 19 off= 61
+  f0*=0.50  ->  on= 21 off= 59
+  f0*=0.75  ->  on= 35 off= 45
+
+--- gates ---
+  (gates 2-5 pending: no verification ver_f* runs yet -- calibration phase)
+  [PASS] gate 1 monotone-dial: f0 seq ['0.01', '0.05', '0.09', '0.13', '0.43', '0.53', '0.56', '0.74', '0.79'] (tol 0.08)
+  [FAIL] gate 6 degree-held: deg>=4 spread 0.107 (tol 0.05)
+
+CSV written to /home/agam/Github/kryptos/experiments/policy_target/rollup.csv
+plot written to /home/agam/Github/kryptos/experiments/policy_target/degree_dist.png

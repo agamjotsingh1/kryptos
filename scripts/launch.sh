@@ -320,6 +320,25 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         job_name="${BASH_REMATCH[1]}"
     fi
 
+    # Opt-in concurrency cap: with MAXCONCURRENT set, hold submission until the
+    # number of this batch's still-active jobs drops below the cap. Unset => the
+    # original fire-all-at-once behaviour (unchanged default).
+    if [[ -n "${MAXCONCURRENT:-}" ]]; then
+        while :; do
+            # Prune finished jobs, then recount. Expanding ${!arr[@]}/${#arr[@]}
+            # on an EMPTY assoc array is an "unbound variable" error under `set -u`
+            # in this bash, so wrap the expansions in `set +u`.
+            set +u
+            for _jid in "${!active_jobs[@]}"; do
+                [[ -z "$(squeue -j "$_jid" -h -o '%T' 2>/dev/null)" ]] && unset "active_jobs[$_jid]"
+            done
+            _nactive=${#active_jobs[@]}
+            set -u
+            (( _nactive < MAXCONCURRENT )) && break
+            sleep 5
+        done
+    fi
+
     raw_out=$(eval "$line --parsable" 2>&1)
     status=$?
     if [[ $status -ne 0 ]]; then
